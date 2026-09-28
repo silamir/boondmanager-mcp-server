@@ -1,0 +1,44 @@
+# EditorConfig — convention de formatage Silamir
+# https://editorconfig.org
+#
+# Déposé par silamir-compliance-bot. Volontairement limité aux clés qui ne
+# reprogramment aucun formateur déjà en place : Prettier lit ce fichier et en
+# dérive `printWidth`, `tabWidth`, `useTabs` et `endOfLine`. La longueur de
+# ligne n'y figure donc pas — elle appartient à votre linter (ruff, ESLint),
+# pas à un fichier déposé par un robot.
+#
+# Défaut à 4 espaces, exception à 2 pour les familles dont l'outillage impose
+# déjà 2 (Prettier, terraform fmt, RuboCop). Ajustez : ce fichier est le vôtre
+# dès la fusion.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# Familles à 2 espaces. La liste couvre tout ce que Prettier formate par
+# défaut : une extension oubliée ici hériterait des 4 espaces ci-dessus et
+# ferait reformater le dépôt au premier `prettier --write`.
+[*.{js,jsx,mjs,cjs,ts,tsx,mts,cts,vue,svelte,json,json5,jsonc,css,scss,less,html,htm,graphql,gql,hbs,yml,yaml,tf,tfvars,rb,rake}]
+indent_size = 2
+
+[*.{go,mk}]
+indent_style = tab
+
+[{Makefile,makefile,GNUmakefile}]
+indent_style = tab
+
+# Deux espaces en fin de ligne valent retour à la ligne en Markdown : les
+# rogner casse la mise en forme. Commentaire sur sa propre ligne — placé en
+# fin de valeur, il serait avalé dans la valeur par l'implémentation de
+# référence, et `trim_trailing_whitespace` cesserait de valoir « false ».
+[*.{md,markdown,mdx}]
+indent_size = 2
+trim_trailing_whitespace = false
+
+[*.{bat,cmd,ps1}]
+end_of_line = crlf
