@@ -189,6 +189,16 @@ export const USAGE_GUIDANCE: Record<string, UsageGuidance> = {
       "`boond_resources_reference_create` / `_update` / `_delete` pour les seules expériences professionnelles : " +
       "elles vivent dans le même bloc, mais ces outils évitent d'avoir à republier le tableau entier.",
   },
+  boond_candidates_technical_data_update: {
+    when: "pour coder le dossier technique d'un candidat (profils, secteurs, outils, langues, expérience, formation).",
+    instead:
+      "`boond_candidates_update` pour l'onglet Information (coordonnées, disponibilité, mobilité, évaluation) ; " +
+      "`boond_resources_technical_data_update` pour un collaborateur interne.",
+  },
+  boond_candidates_administrative_update: {
+    when: "pour renseigner nationalité, salaire souhaité ou contrat souhaité d'un candidat.",
+    instead: "`boond_candidates_technical_data_update` pour les compétences et le parcours.",
+  },
   boond_resources_reference_create: {
     instead:
       "`boond_resources_technical_data_update` pour les autres blocs du dossier technique (compétences, " +

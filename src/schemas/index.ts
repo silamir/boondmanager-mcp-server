@@ -644,6 +644,26 @@ export const CandidateUpdateSchema = z
     state: stateField("candidate", "État du candidat"),
     mainSkills: z.string().optional().describe("Compétences principales"),
     note: z.string().optional().describe("Notes"),
+    address: z.string().optional().describe("Adresse (rue et numéro)"),
+    postcode: z.string().optional().describe("Code postal"),
+    town: z.string().optional().describe("Ville, telle que stockée par l'onglet Information (`town`)"),
+    availability: z
+      .number()
+      .int()
+      .optional()
+      .describe("Disponibilité : ID numérique du dictionnaire `setting.availability`"),
+    mobilityAreas: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "Zones de mobilité : IDs du dictionnaire `setting.mobilityArea` (ex: 'mondeeuropebelgique'). " +
+          "Remplace la liste existante : relire l'onglet Information et fusionner avant d'appeler."
+      ),
+    globalEvaluation: z
+      .string()
+      .optional()
+      .describe("Évaluation globale : ID du dictionnaire `setting.evaluation` (ex: 'a', 'b', 'c', 'd')"),
+    informationComments: z.string().optional().describe("Commentaires de l'onglet Information"),
   })
   .strict();
 
@@ -719,6 +739,69 @@ export const ResourceTechnicalDataUpdateSchema = z
       .array(z.string())
       .optional()
       .describe("Diplômes (texte libre, ex: 'DUT Informatique - IUT Bordeaux (2016)')."),
+  })
+  .strict();
+
+// ---- Candidate technical-data (DT) write schema ----
+// Same payload as the resource DT (PUT /candidates/{id}/technical-data, type=candidate).
+// Scalars experience/training and the area lists take dictionary IDs, not free text.
+export const CandidateTechnicalDataUpdateSchema = z
+  .object({
+    id: EntityIdSchema.describe("ID du candidat dont le dossier technique est mis à jour."),
+    mode: z
+      .enum(["merge", "replace"])
+      .default("merge")
+      .describe(
+        "'merge' (défaut) enrichit le DT sans rien écraser. 'replace' remplace intégralement chaque champ fourni."
+      ),
+    title: z.string().optional().describe("Titre / poste."),
+    summary: z.string().optional().describe("Résumé / synthèse du parcours (Profile Summary)."),
+    skills: z.string().optional().describe("Compétences libres, séparées par virgule."),
+    experience: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe("Tranche d'expérience : ID numérique du dictionnaire `setting.experience`."),
+    training: z.string().optional().describe("Niveau de formation : ID du dictionnaire `setting.training`."),
+    expertiseAreas: z
+      .array(z.string())
+      .optional()
+      .describe("Domaines d'expertise : IDs du dictionnaire `setting.expertiseArea`."),
+    activityAreas: z
+      .array(z.string())
+      .optional()
+      .describe("Secteurs / profils : IDs du dictionnaire `setting.activityArea` (options des groupes)."),
+    tools: z.array(technicalDataToolItemSchema).optional().describe("Outils maîtrisés avec niveau (1-4)."),
+    languages: z.array(technicalDataLanguageItemSchema).optional().describe("Langues parlées avec niveau."),
+    diplomas: z
+      .array(z.string())
+      .optional()
+      .describe("Diplômes (texte libre, ex: '2021 - Ingénieur Civil - UCLouvain')."),
+  })
+  .strict();
+
+// ---- Candidate administrative write schema ----
+// PUT /candidates/{id}/administrative, type=candidate. Attribute names mirror the GET payload.
+const salaryRangeSchema = z
+  .object({
+    min: z.number().min(0).describe("Borne basse"),
+    max: z.number().min(0).describe("Borne haute"),
+  })
+  .strict();
+
+export const CandidateAdministrativeUpdateSchema = z
+  .object({
+    id: EntityIdSchema.describe("ID du candidat."),
+    nationality: z.string().optional().describe("Nationalité (texte, ex: 'Belgique')."),
+    desiredSalary: salaryRangeSchema.optional().describe("Salaire souhaité (fourchette min / max)."),
+    actualSalary: z.number().min(0).optional().describe("Salaire actuel."),
+    desiredContract: z
+      .number()
+      .int()
+      .optional()
+      .describe("Contrat souhaité : ID du dictionnaire `setting.typeOf.contract` (-1 = non renseigné)."),
+    administrativeComments: z.string().optional().describe("Commentaires administratifs."),
   })
   .strict();
 
@@ -2506,6 +2589,8 @@ export type TimesheetSearchInput = z.infer<typeof TimesheetSearchSchema>;
 export type TimesheetGetInput = z.infer<typeof TimesheetGetSchema>;
 export type DictionaryGetInput = z.infer<typeof DictionaryGetSchema>;
 export type ResourceTechnicalDataUpdateInput = z.infer<typeof ResourceTechnicalDataUpdateSchema>;
+export type CandidateTechnicalDataUpdateInput = z.infer<typeof CandidateTechnicalDataUpdateSchema>;
+export type CandidateAdministrativeUpdateInput = z.infer<typeof CandidateAdministrativeUpdateSchema>;
 export type ReferenceCreateInput = z.infer<typeof ReferenceCreateSchema>;
 export type ReferenceUpdateInput = z.infer<typeof ReferenceUpdateSchema>;
 export type ReferenceIdInput = z.infer<typeof ReferenceIdSchema>;
