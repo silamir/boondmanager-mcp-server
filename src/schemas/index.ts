@@ -12,7 +12,7 @@ export const fieldsField = z
   .array(z.string())
   .optional()
   .describe(
-    "Projection : attributs à afficher par résultat (ex: ['title','updateDate']). " +
+    "Projection : attributs ou relations (type#id) par résultat (ex: ['title','dependsOn']). " +
       "Absent = résumé standard. Noms inconnus ignorés."
   );
 

@@ -115,7 +115,7 @@ export const PAGINATION_INERT_DISCLOSURE =
  */
 export const FIELDS_DISCLOSURE =
   "`fields` : projection côté MCP, jamais transmise à l'API — remplace le résumé par les seuls " +
-  "attributs listés (noms inconnus ignorés). À utiliser sur les grosses pages.";
+  "attributs/relations listés (noms inconnus ignorés). À utiliser sur les grosses pages.";
 
 // ---- The five CRUD templates ----------------------------------------------
 

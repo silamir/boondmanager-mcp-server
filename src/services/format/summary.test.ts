@@ -284,3 +284,31 @@ describe("formatEntitySummary", () => {
     });
   });
 });
+
+describe("projectedFieldValue — relationships", () => {
+  it("renders a to-one relationship as type#id when no attribute has that name", async () => {
+    const { projectedFieldValue, formatProjectedSummary } = await import("./summary.js");
+    const entity = {
+      id: "41690",
+      type: "action",
+      attributes: { startDate: "2026-09-30" },
+      relationships: { dependsOn: { data: { id: "18124", type: "candidate" } }, project: { data: null } },
+    };
+    expect(projectedFieldValue(entity, "dependsOn")).toBe("candidate#18124");
+    expect(projectedFieldValue(entity, "project")).toBeNull();
+    expect(projectedFieldValue(entity, "unknown")).toBeUndefined();
+    expect(formatProjectedSummary(entity, ["startDate", "dependsOn"])).toBe(
+      "[#41690] | startDate: 2026-09-30 | dependsOn: candidate#18124"
+    );
+  });
+  it("renders a to-many relationship as a list", async () => {
+    const { projectedFieldValue } = await import("./summary.js");
+    const entity = {
+      id: "1",
+      type: "x",
+      attributes: {},
+      relationships: { files: { data: [{ id: "7", type: "document" }] } },
+    };
+    expect(projectedFieldValue(entity, "files")).toEqual(["document#7"]);
+  });
+});
