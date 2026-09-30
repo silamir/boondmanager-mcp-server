@@ -497,7 +497,9 @@ so an integer could never be what the API stores), exposed as a dictionary id
 `positioning` (the positionings RAML documents `won` on POST attaching a
 project; the invoice / order write path is not verified). Don't add a bare
 `z.number()` `state` to a write schema: use `stateField` where it persists,
-nothing where the workflow owns it.
+nothing where the workflow owns it. On invoices, send `performedPaymentDate` in the
+same PUT as the move to "paid", otherwise Boond dates the payment with today (write
+path unverified; fallback = a second update carrying the date alone).
 
 **`boond_expenses_default`** exists because the expense-type codes are published
 nowhere else. `GET /expenses-reports/default?resource=&term=` is the only route

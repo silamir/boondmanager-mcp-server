@@ -164,4 +164,57 @@ describe("registerInvoiceTools", () => {
       },
     });
   });
+
+  it("sends the actual payment date in the same PUT as the state change", async () => {
+    registerInvoiceTools(server);
+    const call = vi.mocked(server.registerTool).mock.calls.find((c) => c[0] === "boond_invoices_update");
+    const handler = call?.[2] as (params: unknown) => Promise<unknown>;
+
+    await handler({ id: "1", state: 3, performedPaymentDate: "2026-09-15", paymentMethod: 2 });
+
+    expect(apiRequest).toHaveBeenCalledTimes(1);
+    expect(apiRequest).toHaveBeenCalledWith("/invoices/1/information", "PUT", {
+      data: {
+        type: "invoice",
+        attributes: { state: 3, performedPaymentDate: "2026-09-15", paymentMethod: 2 },
+        id: "1",
+      },
+    });
+  });
+
+  it("forwards an empty performedPaymentDate, which clears the date", async () => {
+    registerInvoiceTools(server);
+    const call = vi.mocked(server.registerTool).mock.calls.find((c) => c[0] === "boond_invoices_update");
+    const handler = call?.[2] as (params: unknown) => Promise<unknown>;
+
+    expect(InvoiceUpdateSchema.safeParse({ id: "1", performedPaymentDate: "" }).success).toBe(true);
+    await handler({ id: "1", performedPaymentDate: "" });
+
+    expect(apiRequest).toHaveBeenCalledWith("/invoices/1/information", "PUT", {
+      data: { type: "invoice", attributes: { performedPaymentDate: "" }, id: "1" },
+    });
+  });
+
+  it("rejects a performedPaymentDate that is not YYYY-MM-DD", () => {
+    expect(InvoiceUpdateSchema.safeParse({ id: "1", performedPaymentDate: "15/09/2026" }).success).toBe(false);
+    expect(InvoiceCreateSchema.safeParse({ performedPaymentDate: "15/09/2026" }).success).toBe(false);
+  });
+
+  it("forwards performedPaymentDate in the create body", async () => {
+    registerInvoiceTools(server);
+    const call = vi.mocked(server.registerTool).mock.calls.find((c) => c[0] === "boond_invoices_create");
+    const handler = call?.[2] as (params: unknown) => Promise<unknown>;
+
+    await handler({ orderId: "7", performedPaymentDate: "2026-09-15" });
+
+    expect(apiRequest).toHaveBeenCalledWith(
+      "/invoices",
+      "POST",
+      expect.objectContaining({
+        data: expect.objectContaining({
+          attributes: expect.objectContaining({ performedPaymentDate: "2026-09-15" }),
+        }),
+      })
+    );
+  });
 });

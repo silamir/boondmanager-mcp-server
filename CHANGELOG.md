@@ -5,7 +5,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-_Rien pour l'instant._
+### Fixed
+
+- `boond_invoices_create` / `boond_invoices_update` acceptent `performedPaymentDate` (date de règlement effectif) et `paymentMethod`, attributs écrivables d'après `informationBodyPut.json` ; sans eux, passer une facture à « payée » laissait BoondManager dater le règlement du jour. Non vérifié en réel : que Boond conserve la date envoyée dans le même PUT que le changement d'état. Si elle est encore écrasée, rappeler `boond_invoices_update` une seconde fois avec ce seul champ.
 
 ## [2.17.0] - 2026-09-26
 

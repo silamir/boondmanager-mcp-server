@@ -1173,6 +1173,21 @@ export const ProjectUpdateSchema = z
 
 // ---- Invoice schemas ----
 
+// API pattern is `^|YYYY-MM-DD$`: an empty string clears the date.
+const performedPaymentDateField = z
+  .union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.literal("")])
+  .optional()
+  .describe(
+    "Date de règlement effectif (YYYY-MM-DD, `\"\"` pour l'effacer). À envoyer dans le même appel que le passage de `state` à l'état « payée » : sans elle, BoondManager date le règlement du jour du changement d'état. Si la date est encore écrasée, rappeler `boond_invoices_update` avec ce seul champ."
+  );
+
+const invoicePaymentMethodField = z
+  .number()
+  .int()
+  .min(-1)
+  .optional()
+  .describe("Mode de règlement : ID de `boond://dictionary/paymentMethods`");
+
 export const InvoiceCreateSchema = z
   .object({
     reference: z.string().optional().describe("Référence de la facture"),
@@ -1182,7 +1197,12 @@ export const InvoiceCreateSchema = z
       "État de la facture : ID de `boond://dictionary/states/invoices` (ex: 0 = Création, 1 = Transmis au client)"
     ),
     invoiceDate: z.string().optional().describe("Date de facturation (YYYY-MM-DD)"),
-    expectedPaymentDate: z.string().optional().describe("Date d'échéance/paiement attendu (YYYY-MM-DD)"),
+    expectedPaymentDate: z
+      .string()
+      .optional()
+      .describe("Date d'échéance (YYYY-MM-DD) — pas la date de règlement, voir `performedPaymentDate`"),
+    performedPaymentDate: performedPaymentDateField,
+    paymentMethod: invoicePaymentMethodField,
     amountExcludingTax: z.number().optional().describe("Montant HT"),
     taxRate: z.number().optional().describe("Taux de TVA (%)"),
     invoiceRecords: z.array(z.record(z.string(), z.unknown())).optional().describe("Lignes de facture Boond"),
@@ -1200,7 +1220,12 @@ export const InvoiceUpdateSchema = z
       "État de la facture : ID de `boond://dictionary/states/invoices` (ex: 0 = Création, 1 = Transmis au client)"
     ),
     invoiceDate: z.string().optional().describe("Date de facturation (YYYY-MM-DD)"),
-    expectedPaymentDate: z.string().optional().describe("Date d'échéance/paiement attendu (YYYY-MM-DD)"),
+    expectedPaymentDate: z
+      .string()
+      .optional()
+      .describe("Date d'échéance (YYYY-MM-DD) — pas la date de règlement, voir `performedPaymentDate`"),
+    performedPaymentDate: performedPaymentDateField,
+    paymentMethod: invoicePaymentMethodField,
     amountExcludingTax: z.number().optional().describe("Montant HT"),
     taxRate: z.number().optional().describe("Taux de TVA (%)"),
     invoiceRecords: z.array(z.record(z.string(), z.unknown())).optional().describe("Lignes de facture Boond"),
