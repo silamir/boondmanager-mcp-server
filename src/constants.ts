@@ -61,6 +61,16 @@ export const MAX_SEARCH_PAGE = 100;
 // anything beyond this is refused with a clear message instead of silently
 // flooding the conversation.
 export const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
+
+/** Default ceiling for a local file uploaded via `filePath` (`BOOND_MCP_UPLOAD_MAX_BYTES`). */
+export const DEFAULT_UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
+
+/**
+ * Ceiling for base64 content passed inline (`fileContent`). Kept low on
+ * purpose: every byte costs ~1.33 base64 characters in the model's output.
+ */
+export const INLINE_UPLOAD_MAX_BYTES = 2 * 1024 * 1024;
+
 /**
  * Ceiling for a document returned as MCP `image` content (issue #263). Hosts
  * hand `image` content to the model's vision input, so the bytes land in the

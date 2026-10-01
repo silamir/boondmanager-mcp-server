@@ -4,6 +4,12 @@ import { registerDocumentTools } from "./documents.js";
 import { apiDownload, apiUploadForm, DownloadTooLargeError } from "../services/boond-client.js";
 import { MAX_DOCUMENT_BYTES, MAX_IMAGE_BYTES, CHARACTER_LIMIT } from "../constants.js";
 import { buildPdf, buildZip } from "../services/document-text.test.js";
+import { readLocalUpload, UploadRejectedError } from "../services/upload-source.js";
+
+vi.mock("../services/upload-source.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/upload-source.js")>();
+  return { ...actual, readLocalUpload: vi.fn() };
+});
 
 vi.mock("../services/boond-client.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/boond-client.js")>();
@@ -34,6 +40,7 @@ describe("registerDocumentTools", () => {
     server = createMockServer();
     vi.mocked(apiDownload).mockReset();
     vi.mocked(apiUploadForm).mockReset();
+    vi.mocked(readLocalUpload).mockReset();
   });
 
   it("should register 3 tools", () => {
@@ -273,6 +280,83 @@ describe("registerDocumentTools", () => {
       });
       expect(result.structuredContent).toEqual({ id: "777", type: "document" });
       expect(result.content[0].text).toContain("777");
+    });
+
+    it("uploads a local file as a binary multipart part, without fileUrl", async () => {
+      const file = { data: Buffer.from("%PDF-1.7"), filename: "cv.pdf", contentType: "application/pdf" };
+      vi.mocked(readLocalUpload).mockResolvedValue(file);
+      vi.mocked(apiUploadForm).mockResolvedValue({ data: { id: "778", type: "document", attributes: {} } });
+      registerDocumentTools(server);
+      const result = await handlerOf(
+        server,
+        "boond_documents_create"
+      )({
+        parentType: "expensesReport",
+        parentId: 9,
+        filePath: "/home/me/Boond/ticket.pdf",
+      });
+      expect(readLocalUpload).toHaveBeenCalledWith("/home/me/Boond/ticket.pdf");
+      expect(apiUploadForm).toHaveBeenCalledWith("/documents", { parentType: "expensesReport", parentId: "9" }, file);
+      expect(result.structuredContent).toEqual({ id: "778", type: "document" });
+      expect(result.content[0].text).toContain("cv.pdf");
+    });
+
+    it("surfaces a policy refusal as a tool error and never calls the API", async () => {
+      vi.mocked(readLocalUpload).mockRejectedValue(
+        new UploadRejectedError("Téléversement de fichiers locaux désactivé.")
+      );
+      registerDocumentTools(server);
+      const result = await handlerOf(
+        server,
+        "boond_documents_create"
+      )({
+        parentType: "candidateResume",
+        parentId: 1,
+        filePath: "/etc/passwd",
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("désactivé");
+      expect(apiUploadForm).not.toHaveBeenCalled();
+    });
+
+    it("uploads inline base64 content with its file name", async () => {
+      vi.mocked(apiUploadForm).mockResolvedValue({ data: { id: "779", type: "document", attributes: {} } });
+      registerDocumentTools(server);
+      await handlerOf(
+        server,
+        "boond_documents_create"
+      )({
+        parentType: "candidateResume",
+        parentId: 42,
+        fileContent: Buffer.from("%PDF-1.7 cv").toString("base64"),
+        fileName: "cv.pdf",
+        parsing: true,
+      });
+      expect(apiUploadForm).toHaveBeenCalledWith(
+        "/documents",
+        { parentType: "candidateResume", parentId: "42", parsing: "true" },
+        { data: Buffer.from("%PDF-1.7 cv"), filename: "cv.pdf", contentType: "application/pdf" }
+      );
+    });
+
+    it("requires exactly one source, and fileName only with fileContent", async () => {
+      registerDocumentTools(server);
+      const create = handlerOf(server, "boond_documents_create");
+      const none = await create({ parentType: "company", parentId: 1 });
+      expect(none.isError).toBe(true);
+      expect(none.content[0].text).toContain("reçu : 0");
+      const two = await create({ parentType: "company", parentId: 1, fileUrl: "https://x/y.pdf", filePath: "/a.pdf" });
+      expect(two.content[0].text).toContain("reçu : 2");
+      const noName = await create({ parentType: "company", parentId: 1, fileContent: "JVBERi0=" });
+      expect(noName.content[0].text).toContain("`fileName`");
+      const strayName = await create({
+        parentType: "company",
+        parentId: 1,
+        fileUrl: "https://x/y.pdf",
+        fileName: "y.pdf",
+      });
+      expect(strayName.isError).toBe(true);
+      expect(apiUploadForm).not.toHaveBeenCalled();
     });
   });
 });

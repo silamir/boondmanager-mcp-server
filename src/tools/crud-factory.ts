@@ -10,6 +10,7 @@ import {
   formatEntitySummary,
 } from "../services/boond-client.js";
 import { progressReporterFrom } from "../services/progress.js";
+import { projectedFieldValue } from "../services/format/summary.js";
 import { SearchSchema, IdSchema, IdTabSchema } from "../schemas/index.js";
 import {
   defaultSearchDescription,
@@ -95,10 +96,10 @@ export function buildListStructured(
       // flat items with no `attributes` wrapper — same fallback as
       // `formatProjectedSummary`, otherwise structuredContent held bare ids while
       // the text output showed the projected values.
-      const attrs = entity.attributes ?? entity;
       const selected: Record<string, unknown> = {};
       for (const field of fields) {
-        if (attrs[field] !== undefined) selected[field] = attrs[field];
+        const value = projectedFieldValue(entity, field);
+        if (value !== undefined) selected[field] = value;
       }
       item.attributes = selected;
     } else {

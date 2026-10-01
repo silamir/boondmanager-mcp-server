@@ -301,15 +301,35 @@ export async function apiRequest(
 }
 
 /**
- * POST a multipart/form-data payload to the BoondManager API (document
- * upload). Form values are simple string fields — the file itself travels by
- * reference via the `fileUrl` field (Boond downloads it server-side), so the
- * MCP server never buffers file bytes.
+ * Name of the multipart part carrying file bytes on `POST /documents`.
+ * The RAML documents no body for this route (`post: description: Create a
+ * document`); `file` was confirmed against a production tenant (PDF attached
+ * to a candidate, visible and intact in the BoondManager UI).
  */
-export async function apiUploadForm(path: string, fields: Record<string, string>): Promise<JsonApiResponse> {
+export const DOCUMENT_UPLOAD_FILE_FIELD = "file";
+
+/**
+ * POST a multipart/form-data payload to the BoondManager API (document
+ * upload). Form values are simple string fields; the file travels either by
+ * reference (`fileUrl`, Boond downloads it server-side) or, when `file` is
+ * given, as a binary part named {@link DOCUMENT_UPLOAD_FILE_FIELD}. The
+ * caller bounds the size of `file.data` (see `services/upload-source.ts`).
+ */
+export async function apiUploadForm(
+  path: string,
+  fields: Record<string, string>,
+  file?: { data: Buffer; filename: string; contentType: string }
+): Promise<JsonApiResponse> {
   const form = new FormData();
   for (const [key, value] of Object.entries(fields)) {
     form.set(key, value);
+  }
+  if (file !== undefined) {
+    form.set(
+      DOCUMENT_UPLOAD_FILE_FIELD,
+      new Blob([new Uint8Array(file.data)], { type: file.contentType }),
+      file.filename
+    );
   }
   // No Content-Type header: fetch derives the multipart boundary from FormData.
   const response = await send(path, { method: "POST", body: form, headers: { Accept: "application/json" } });

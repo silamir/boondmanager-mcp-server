@@ -7,15 +7,7 @@ import { initClient, initClientWithAuth, oauthContextAuth, hasEnvCredentials } f
 import { createMcpServer, REGISTERED_DOMAINS } from "./server.js";
 import { runUpdateNotification } from "./services/update-checker.js";
 import { resolveHttpOptions, startHttpTransport } from "./transports/http.js";
-import { readString } from "./config/env.js";
-
-type TransportKind = "stdio" | "http";
-
-function resolveTransport(): TransportKind {
-  const raw = (readString("MCP_TRANSPORT") ?? "").toLowerCase().trim();
-  if (raw === "http" || raw === "streamable-http" || raw === "streamablehttp") return "http";
-  return "stdio";
-}
+import { resolveTransport } from "./config/transport-kind.js";
 
 function readLocalPackageMeta(): { name: string; version: string } | null {
   try {

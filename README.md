@@ -31,7 +31,7 @@
 
 Serveur MCP (Model Context Protocol) pour l'API BoondManager, permettant a Claude (Desktop, Cowork, Code) de rechercher, consulter, creer et modifier des enregistrements dans votre instance BoondManager.
 
-**235 outils** couvrant **42 domaines** de l'API BoondManager. Voir [TOOLS.md](./TOOLS.md) pour le catalogue auto-généré (outils + prompts + ressources).
+**237 outils** couvrant **42 domaines** de l'API BoondManager. Voir [TOOLS.md](./TOOLS.md) pour le catalogue auto-généré (outils + prompts + ressources).
 
 > **Sorties structurées.** En plus du texte lisible, les outils `search`, `create`, `update` et `delete` renvoient un `structuredContent` conforme à un `outputSchema` MCP : `search` → `{ total?, count, items[] }` (résumés compacts, pas les ressources JSON:API complètes), `create`/`update` → `{ id?, type? }`, `delete` → `{ id, deleted, reason? }`. Les clients MCP qui exploitent les sorties structurées obtiennent une référence d'entité fiable pour chaîner les appels. Les outils `get` restent en texte seul (leur texte est déjà du JSON exploitable).
 
@@ -607,6 +607,27 @@ L'API BoondManager n'expose qu'un seul endpoint `/application/dictionary` qui re
 | Variable | Defaut | Description |
 |----------|--------|-------------|
 | `BOOND_DICTIONARY_TTL_MS` | `3600000` (1 h) | Durée de vie du cache du dictionnaire, en millisecondes. Une valeur non numérique ou ≤ 0 retombe sur le défaut. |
+
+### Téléversement de documents locaux
+
+`boond_documents_create` accepte trois sources, exactement une par appel :
+
+| Source | Transport | Activation | Limite |
+| --- | --- | --- | --- |
+| `fileUrl` | tous | toujours | — (BoondManager télécharge l'URL) |
+| `filePath` | **stdio uniquement** | `BOOND_MCP_UPLOAD_DIRS` | `BOOND_MCP_UPLOAD_MAX_BYTES` (20 Mo) |
+| `fileContent` (base64) + `fileName` | tous | toujours | 2 Mo |
+
+| Variable                     | Défaut      | Description                                                                                          |
+| ---------------------------- | ----------- | ---------------------------------------------------------------------------------------------------- |
+| `BOOND_MCP_UPLOAD_DIRS`      | _(aucune)_  | Répertoires dont les fichiers peuvent être téléversés (chemins absolus, CSV). Absente = `filePath` désactivé. |
+| `BOOND_MCP_UPLOAD_MAX_BYTES` | `20971520`  | Taille maximale d'un fichier local, en octets.                                                       |
+
+```bash
+export BOOND_MCP_UPLOAD_DIRS="$HOME/Documents/Boond,$HOME/Downloads"
+```
+
+Garde-fous : chemin absolu obligatoire, confinement vérifié après résolution des liens symboliques (`..` et symlinks sortants refusés), fichier régulier uniquement, type déterminé par les premiers octets (PDF, DOCX/XLSX/PPTX, ODT/ODS, DOC/XLS/PPT, RTF, PNG, JPEG, GIF, WebP) et non par l'extension. N'autorisez que des répertoires dédiés : tout fichier accepté qui s'y trouve peut être envoyé dans BoondManager à la demande du modèle.
 
 ### Restriction d'accès (profils / domaines / lecture seule)
 

@@ -3,7 +3,7 @@
 > Auto-generated from the server registrations. Do not edit by hand.
 > Regenerate with `npm run docs:tools` (CI fails if this file is stale).
 
-**235 tools** across **45 domains** · **24 prompts** · **48 resources** · **6 resource templates**.
+**237 tools** across **45 domains** · **24 prompts** · **48 resources** · **6 resource templates**.
 
 Hint legend: `read` (readOnlyHint), `write` (creates/updates), `delete` (destructiveHint), `idempotent` (idempotentHint), `open-world` (openWorldHint, e.g. paginated keyword search).
 
@@ -80,12 +80,13 @@ Hint legend: `read` (readOnlyHint), `write` (creates/updates), `delete` (destruc
 | `boond_calendars_get` | Détails d'un(e) calendrier | read · idempotent |
 | `boond_calendars_search` | Rechercher des calendriers | read · idempotent · open-world |
 
-### candidates (10)
+### candidates (12)
 
 | Tool | Title | Hints |
 |---|---|---|
 | `boond_candidates_actions` | Actions liées à un candidat | read · idempotent |
 | `boond_candidates_administrative` | Données administratives d'un candidat | read · idempotent |
+| `boond_candidates_administrative_update` | Mettre à jour les données administratives d'un candidat | write · idempotent |
 | `boond_candidates_create` | Créer un(e) candidat | write |
 | `boond_candidates_delete` | Supprimer un(e) candidat | delete |
 | `boond_candidates_get` | Détails d'un(e) candidat | read · idempotent |
@@ -93,6 +94,7 @@ Hint legend: `read` (readOnlyHint), `write` (creates/updates), `delete` (destruc
 | `boond_candidates_positionings` | Positionnements d'un candidat | read · idempotent |
 | `boond_candidates_search` | Rechercher des candidats | read · idempotent · open-world |
 | `boond_candidates_technical_data` | Compétences techniques d'un candidat | read · idempotent |
+| `boond_candidates_technical_data_update` | Mettre à jour le dossier technique d'un candidat | write · idempotent |
 | `boond_candidates_update` | Modifier un(e) candidat | write · idempotent |
 
 ### companies (14)

@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { initClient, resetClientForTests } from "./auth.js";
 import { resetRateLimiterForTests } from "./rate-limit.js";
-import { resolveTimeoutMs, assertSafeApiPath, apiRequest, apiUploadForm } from "./transport.js";
+import {
+  resolveTimeoutMs,
+  assertSafeApiPath,
+  apiRequest,
+  apiUploadForm,
+  DOCUMENT_UPLOAD_FILE_FIELD,
+} from "./transport.js";
 import { DEFAULT_HTTP_TIMEOUT_MS } from "../../constants.js";
 
 describe("assertSafeApiPath", () => {
@@ -280,6 +286,28 @@ describe("apiUploadForm", () => {
     expect(form.get("parentId")).toBe("42");
     // No manual Content-Type: fetch must derive the multipart boundary itself
     expect((options.headers as Record<string, string>)["Content-Type"]).toBeUndefined();
+  });
+
+  it("sends file bytes as a named binary part when a file is given", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-length": "50" }),
+      json: () => Promise.resolve({ data: { id: "1", type: "document", attributes: {} } }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await apiUploadForm(
+      "/documents",
+      { parentType: "candidateResume", parentId: "42" },
+      { data: Buffer.from("%PDF-1.7"), filename: "cv.pdf", contentType: "application/pdf" }
+    );
+    const form = (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as FormData;
+    const part = form.get(DOCUMENT_UPLOAD_FILE_FIELD) as File;
+    expect(part).toBeInstanceOf(Blob);
+    expect(part.name).toBe("cv.pdf");
+    expect(part.type).toBe("application/pdf");
+    expect(Buffer.from(await part.arrayBuffer()).toString()).toBe("%PDF-1.7");
+    expect(form.get("fileUrl")).toBeNull();
   });
 
   it("throws a formatted error on non-2xx", async () => {

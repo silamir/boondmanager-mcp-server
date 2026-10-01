@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, MAX_SEARCH_PAGE } from "../constants.js";
+import { DEFAULT_PAGE_SIZE, INLINE_UPLOAD_MAX_BYTES, MAX_PAGE_SIZE, MAX_SEARCH_PAGE } from "../constants.js";
 import { appendOverridesToDescription, resolveLabel } from "../config/dictionary-overrides.js";
 
 // Client-side projection, shared by every search schema. Declared before
@@ -12,7 +12,7 @@ export const fieldsField = z
   .array(z.string())
   .optional()
   .describe(
-    "Projection : attributs à afficher par résultat (ex: ['title','updateDate']). " +
+    "Projection : attributs ou relations (type#id) par résultat (ex: ['title','dependsOn']). " +
       "Absent = résumé standard. Noms inconnus ignorés."
   );
 
@@ -644,6 +644,26 @@ export const CandidateUpdateSchema = z
     state: stateField("candidate", "État du candidat"),
     mainSkills: z.string().optional().describe("Compétences principales"),
     note: z.string().optional().describe("Notes"),
+    address: z.string().optional().describe("Adresse (rue et numéro)"),
+    postcode: z.string().optional().describe("Code postal"),
+    town: z.string().optional().describe("Ville, telle que stockée par l'onglet Information (`town`)"),
+    availability: z
+      .number()
+      .int()
+      .optional()
+      .describe("Disponibilité : ID numérique du dictionnaire `setting.availability`"),
+    mobilityAreas: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "Zones de mobilité : IDs du dictionnaire `setting.mobilityArea` (ex: 'mondeeuropebelgique'). " +
+          "Remplace la liste existante : relire l'onglet Information et fusionner avant d'appeler."
+      ),
+    globalEvaluation: z
+      .string()
+      .optional()
+      .describe("Évaluation globale : ID du dictionnaire `setting.evaluation` (ex: 'a', 'b', 'c', 'd')"),
+    informationComments: z.string().optional().describe("Commentaires de l'onglet Information"),
   })
   .strict();
 
@@ -719,6 +739,69 @@ export const ResourceTechnicalDataUpdateSchema = z
       .array(z.string())
       .optional()
       .describe("Diplômes (texte libre, ex: 'DUT Informatique - IUT Bordeaux (2016)')."),
+  })
+  .strict();
+
+// ---- Candidate technical-data (DT) write schema ----
+// Same payload as the resource DT (PUT /candidates/{id}/technical-data, type=candidate).
+// Scalars experience/training and the area lists take dictionary IDs, not free text.
+export const CandidateTechnicalDataUpdateSchema = z
+  .object({
+    id: EntityIdSchema.describe("ID du candidat dont le dossier technique est mis à jour."),
+    mode: z
+      .enum(["merge", "replace"])
+      .default("merge")
+      .describe(
+        "'merge' (défaut) enrichit le DT sans rien écraser. 'replace' remplace intégralement chaque champ fourni."
+      ),
+    title: z.string().optional().describe("Titre / poste."),
+    summary: z.string().optional().describe("Résumé / synthèse du parcours (Profile Summary)."),
+    skills: z.string().optional().describe("Compétences libres, séparées par virgule."),
+    experience: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe("Tranche d'expérience : ID numérique du dictionnaire `setting.experience`."),
+    training: z.string().optional().describe("Niveau de formation : ID du dictionnaire `setting.training`."),
+    expertiseAreas: z
+      .array(z.string())
+      .optional()
+      .describe("Domaines d'expertise : IDs du dictionnaire `setting.expertiseArea`."),
+    activityAreas: z
+      .array(z.string())
+      .optional()
+      .describe("Secteurs / profils : IDs du dictionnaire `setting.activityArea` (options des groupes)."),
+    tools: z.array(technicalDataToolItemSchema).optional().describe("Outils maîtrisés avec niveau (1-4)."),
+    languages: z.array(technicalDataLanguageItemSchema).optional().describe("Langues parlées avec niveau."),
+    diplomas: z
+      .array(z.string())
+      .optional()
+      .describe("Diplômes (texte libre, ex: '2021 - Ingénieur Civil - UCLouvain')."),
+  })
+  .strict();
+
+// ---- Candidate administrative write schema ----
+// PUT /candidates/{id}/administrative, type=candidate. Attribute names mirror the GET payload.
+const salaryRangeSchema = z
+  .object({
+    min: z.number().min(0).describe("Borne basse"),
+    max: z.number().min(0).describe("Borne haute"),
+  })
+  .strict();
+
+export const CandidateAdministrativeUpdateSchema = z
+  .object({
+    id: EntityIdSchema.describe("ID du candidat."),
+    nationality: z.string().optional().describe("Nationalité (texte, ex: 'Belgique')."),
+    desiredSalary: salaryRangeSchema.optional().describe("Salaire souhaité (fourchette min / max)."),
+    actualSalary: z.number().min(0).optional().describe("Salaire actuel."),
+    desiredContract: z
+      .number()
+      .int()
+      .optional()
+      .describe("Contrat souhaité : ID du dictionnaire `setting.typeOf.contract` (-1 = non renseigné)."),
+    administrativeComments: z.string().optional().describe("Commentaires administratifs."),
   })
   .strict();
 
@@ -2467,9 +2550,11 @@ export const DictionaryGetSchema = z
 
 // ---- Documents ----
 // Source: https://doc.boondmanager.com/api-externe/raml-build/resources/documents/search.raml
-// L'upload passe par `fileUrl` uniquement : l'API BoondManager télécharge le
-// fichier elle-même, le serveur MCP ne bufferise jamais d'octets de fichier
-// (et n'expose pas de lecture du système de fichiers local).
+// Trois sources, exactement une par appel (vérifié par le handler, un JSON
+// Schema ne sait pas l'exprimer lisiblement) : `fileUrl` (BoondManager
+// télécharge lui-même), `filePath` (fichier local, stdio uniquement, désactivé
+// tant que `BOOND_MCP_UPLOAD_DIRS` n'est pas défini) et `fileContent` + `fileName`
+// (base64 inline, plafonné). Garde-fous : `services/upload-source.ts`.
 export const DocumentParentTypes = [
   "action",
   "resourceResume",
@@ -2508,7 +2593,31 @@ export const DocumentCreateSchema = z
     fileUrl: z
       .string()
       .url()
+      .optional()
       .describe("URL (https) du fichier à téléverser — BoondManager télécharge le fichier depuis cette URL."),
+    filePath: z
+      .string()
+      .min(1)
+      .max(4096)
+      .optional()
+      .describe(
+        "Chemin absolu d'un fichier local, lu par le serveur MCP (transport stdio uniquement, sous un répertoire " +
+          "de BOOND_MCP_UPLOAD_DIRS)."
+      ),
+    fileContent: z
+      .string()
+      .min(1)
+      .max(Math.ceil(INLINE_UPLOAD_MAX_BYTES / 3) * 4 + 256)
+      .optional()
+      .describe(
+        "Contenu du fichier en base64 (préfixe data: URI accepté), petits fichiers uniquement. Exige fileName."
+      ),
+    fileName: z
+      .string()
+      .min(1)
+      .max(255)
+      .optional()
+      .describe("Nom du fichier avec son extension (ex. cv.pdf), requis avec fileContent."),
     parsing: z
       .boolean()
       .optional()
@@ -2531,6 +2640,8 @@ export type TimesheetSearchInput = z.infer<typeof TimesheetSearchSchema>;
 export type TimesheetGetInput = z.infer<typeof TimesheetGetSchema>;
 export type DictionaryGetInput = z.infer<typeof DictionaryGetSchema>;
 export type ResourceTechnicalDataUpdateInput = z.infer<typeof ResourceTechnicalDataUpdateSchema>;
+export type CandidateTechnicalDataUpdateInput = z.infer<typeof CandidateTechnicalDataUpdateSchema>;
+export type CandidateAdministrativeUpdateInput = z.infer<typeof CandidateAdministrativeUpdateSchema>;
 export type ReferenceCreateInput = z.infer<typeof ReferenceCreateSchema>;
 export type ReferenceUpdateInput = z.infer<typeof ReferenceUpdateSchema>;
 export type ReferenceIdInput = z.infer<typeof ReferenceIdSchema>;

@@ -156,16 +156,36 @@ export function formatEntitySummary(entity: unknown): string {
  * degrades to a shorter line rather than an error. Non-primitive values are
  * JSON-serialised — some Boond attributes are nested objects.
  */
-export function formatProjectedSummary(entity: unknown, fields: string[]): string {
+/**
+ * Value of one projected field: the attribute when present, otherwise the
+ * relationship of that name rendered as `type#id` (list for to-many). Lets a
+ * search answer "which candidate is this action/positioning about?"
+ * (`fields: ['dependsOn']`) without one `get` call per row.
+ */
+export function projectedFieldValue(entity: unknown, field: string): unknown {
   const e = (entity ?? {}) as Record<string, unknown>;
   const attrs = (e.attributes ?? e) as Record<string, unknown>;
+  if (attrs[field] !== undefined) return attrs[field];
+  const rels = e.relationships as Record<string, { data?: unknown }> | undefined;
+  const rel = rels?.[field];
+  if (rel === undefined || !("data" in rel)) return undefined;
+  const ref = (d: unknown): string | null => {
+    const r = d as { id?: unknown; type?: unknown } | null;
+    return r && r.id !== undefined ? `${String(r.type)}#${String(r.id)}` : null;
+  };
+  if (Array.isArray(rel.data)) return rel.data.map(ref).filter((x) => x !== null);
+  return ref(rel.data);
+}
+
+export function formatProjectedSummary(entity: unknown, fields: string[]): string {
+  const e = (entity ?? {}) as Record<string, unknown>;
   // Reference endpoints return flat rows keyed on something else than `id`
   // (`/calendars` keys countries on `iso`), so a missing id renders as the same
   // `[item]` token the standard summary uses — not as a `[#?]` that reads like
   // a formatting bug.
   const parts: string[] = [e.id !== undefined ? `[#${String(e.id)}]` : "[item]"];
   for (const field of fields) {
-    const value = attrs[field];
+    const value = projectedFieldValue(e, field);
     if (value === undefined) continue;
     parts.push(`${field}: ${renderAttributeValue(value)}`);
   }

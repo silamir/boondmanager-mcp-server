@@ -3,7 +3,9 @@ import { apiDownload, apiUploadForm, formatDetailResponse, DownloadTooLargeError
 import { progressReporterFrom } from "../services/progress.js";
 import { DocumentGetSchema, DocumentCreateSchema } from "../schemas/index.js";
 import type { DocumentGetInput, DocumentCreateInput } from "../schemas/index.js";
-import { MAX_DOCUMENT_BYTES, MAX_IMAGE_BYTES, CHARACTER_LIMIT } from "../constants.js";
+import { MAX_DOCUMENT_BYTES, MAX_IMAGE_BYTES, CHARACTER_LIMIT, INLINE_UPLOAD_MAX_BYTES } from "../constants.js";
+import { decodeInlineUpload, readLocalUpload, UploadRejectedError } from "../services/upload-source.js";
+import type { UploadFile } from "../services/upload-source.js";
 import { registerDeleteTool, MutationOutputSchema } from "./crud-factory.js";
 import { extractDocxText, extractPdfText, isDocxMime, isImageMime, isPdfMime } from "../services/document-text.js";
 import type { ExtractedText } from "../services/document-text.js";
@@ -137,14 +139,17 @@ Un ID inconnu est rejeté explicitement plutôt que de renvoyer la page d'accuei
     }
   );
 
-  // Upload a document by URL
+  // Upload a document: by URL, by local path (opt-in, stdio) or inline base64
   server.registerTool(
     "boond_documents_create",
     {
       title: "Téléverser un document",
-      description: `Attache un document à une entité BoondManager à partir d'une URL (l'API BoondManager télécharge elle-même le fichier — aucun fichier local n'est lu).
+      description: `Attache un document à une entité BoondManager. Exactement une source par appel :
+- \`fileUrl\` : URL https que BoondManager télécharge lui-même (aucun octet ne transite par le serveur MCP) ;
+- \`filePath\` : chemin absolu d'un fichier local, lu par le serveur MCP — transport stdio uniquement, et seulement sous un répertoire listé dans \`BOOND_MCP_UPLOAD_DIRS\` (désactivé par défaut) ;
+- \`fileContent\` (base64) + \`fileName\` : petit fichier passé inline, ${Math.round(INLINE_UPLOAD_MAX_BYTES / 1024 / 1024)} Mo max.
 
-Cas d'usage typiques : attacher un CV à un candidat (parentType=candidateResume, parsing=true pour lancer l'analyse IA Boond), joindre un justificatif à une note de frais (expensesReport), un document à un projet/une société...
+Le format est vérifié sur les premiers octets du fichier (PDF, Office, ODF, RTF, images), pas sur l'extension. \`fileContent\` suppose que l'appelant détient déjà les octets exacts : un modèle ne peut pas retranscrire de façon fiable une pièce jointe de conversation en base64 — préférer \`filePath\`. Cas d'usage typiques : CV d'un candidat (parentType=candidateResume, parsing=true pour l'analyse IA Boond), justificatif de note de frais (expensesReport), bon de commande, contrat...
 
 Returns: Métadonnées du document créé (ID).`,
       inputSchema: DocumentCreateSchema,
@@ -157,22 +162,55 @@ Returns: Métadonnées du document créé (ID).`,
       },
     },
     async (params: DocumentCreateInput) => {
+      const reject = (text: string) => ({ isError: true, content: [{ type: "text" as const, text: `❌ ${text}` }] });
+
+      const sources = [params.fileUrl, params.filePath, params.fileContent].filter((v) => v !== undefined).length;
+      if (sources !== 1) {
+        return reject(
+          `Exactement une source de fichier est attendue (reçu : ${sources}). Fournir \`fileUrl\`, ou \`filePath\`, ` +
+            "ou `fileContent` + `fileName`."
+        );
+      }
+      if (params.fileContent !== undefined && params.fileName === undefined) {
+        return reject("`fileName` (avec extension, ex. « cv.pdf ») est requis avec `fileContent`.");
+      }
+      if (params.fileContent === undefined && params.fileName !== undefined) {
+        return reject("`fileName` ne s'utilise qu'avec `fileContent`.");
+      }
+
+      let file: UploadFile | undefined;
+      try {
+        if (params.filePath !== undefined) file = await readLocalUpload(params.filePath);
+        else if (params.fileContent !== undefined && params.fileName !== undefined)
+          file = decodeInlineUpload(params.fileContent, params.fileName);
+      } catch (error) {
+        if (error instanceof UploadRejectedError) return reject(error.message);
+        throw error;
+      }
+
       const fields: Record<string, string> = {
         parentType: params.parentType,
         parentId: String(params.parentId),
-        fileUrl: params.fileUrl,
       };
+      if (params.fileUrl !== undefined) fields.fileUrl = params.fileUrl;
       if (params.parsing !== undefined) fields.parsing = String(params.parsing);
-      const response = await apiUploadForm("/documents", fields);
+      const response =
+        file === undefined
+          ? await apiUploadForm("/documents", fields)
+          : await apiUploadForm("/documents", fields, file);
       const entity = Array.isArray(response.data) ? response.data[0] : response.data;
       const structured: { id?: string; type?: string } = {};
       if (entity?.id !== undefined) structured.id = String(entity.id);
       if (entity?.type !== undefined) structured.type = String(entity.type);
+      const sent =
+        file === undefined
+          ? ""
+          : `\nFichier: ${file.filename} (${file.contentType}, ${(file.data.length / 1024).toFixed(0)} Ko)`;
       return {
         content: [
           {
             type: "text" as const,
-            text: `✅ Document créé avec succès.\nID: ${entity?.id}\n\n${formatDetailResponse(response)}`,
+            text: `✅ Document créé avec succès.\nID: ${entity?.id}${sent}\n\n${formatDetailResponse(response)}`,
           },
         ],
         structuredContent: structured,

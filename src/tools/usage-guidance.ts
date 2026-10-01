@@ -53,10 +53,10 @@ export const USAGE_GUIDANCE: Record<string, UsageGuidance> = {
       "*trouver* l'ID : celui-ci exige un ID exact, suffixe compris (`123_resume`), et un ID tronqué désigne un autre document.",
   },
   boond_documents_create: {
-    when: "pour attacher à une entité un fichier accessible par URL publique.",
+    when: "pour attacher un fichier à une entité : URL publique, fichier local (si l'opérateur l'a autorisé) ou petit fichier en base64.",
     instead:
-      "aucune alternative pour un fichier local : le serveur MCP ne lit jamais le disque, c'est BoondManager qui " +
-      "télécharge l'URL. Il faut donc d'abord héberger le fichier quelque part d'atteignable.",
+      "aucune alternative : c'est le seul outil d'écriture de documents. Si `filePath` est refusé (transport HTTP ou " +
+      "BOOND_MCP_UPLOAD_DIRS non défini), passer par `fileUrl` ou, sous 2 Mo, par `fileContent`.",
   },
   boond_documents_delete: {
     when: "pour retirer une pièce jointe erronée, sur demande explicite de l'utilisateur.",
@@ -188,6 +188,16 @@ export const USAGE_GUIDANCE: Record<string, UsageGuidance> = {
     instead:
       "`boond_resources_reference_create` / `_update` / `_delete` pour les seules expériences professionnelles : " +
       "elles vivent dans le même bloc, mais ces outils évitent d'avoir à republier le tableau entier.",
+  },
+  boond_candidates_technical_data_update: {
+    when: "pour coder le dossier technique d'un candidat (profils, secteurs, outils, langues, expérience, formation).",
+    instead:
+      "`boond_candidates_update` pour l'onglet Information (coordonnées, disponibilité, mobilité, évaluation) ; " +
+      "`boond_resources_technical_data_update` pour un collaborateur interne.",
+  },
+  boond_candidates_administrative_update: {
+    when: "pour renseigner nationalité, salaire souhaité ou contrat souhaité d'un candidat.",
+    instead: "`boond_candidates_technical_data_update` pour les compétences et le parcours.",
   },
   boond_resources_reference_create: {
     instead:
