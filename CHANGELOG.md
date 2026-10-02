@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.19.0] - 2026-10-02
+
+Relais d'upload pour joindre à BoondManager une pièce jointe de conversation (`boond_documents_upload_slot`, puis `uploadSlot` dans `boond_documents_create`), plus trois mises à jour de dépendances transitives (`ip-address`, `fast-uri`, `brace-expansion`). Aucun nom d'outil existant ne change. Catalogue : 238 outils.
+
 ### Added
 
 - **Relais d'upload pour les pièces jointes de conversation : `boond_documents_upload_slot` + `uploadSlot` dans `boond_documents_create`.** Une pièce jointe glissée dans une conversation réside dans l'environnement d'exécution de code du client, ni à une URL publique ni sur le poste du serveur, et le modèle ne peut pas la retranscrire de façon fiable en base64. Le nouvel outil ouvre un slot à usage unique (15 min) sur un stockage de l'opérateur : le bac à sable y dépose le fichier en une requête `PUT` (commande `curl` fournie), sans que les octets passent par la sortie du modèle ; `boond_documents_create({ uploadSlot })` vérifie le fichier (taille, magic bytes), transmet à Boond une URL de lecture temporaire via `fileUrl`, puis le supprime définitivement, que Boond ait réussi ou non. Premier backend : **SharePoint** via Microsoft Graph (identifiants d'application Entra ID, permission `Sites.Selected` limitée à un site, `permanentDelete` sans corbeille). Désactivé par défaut (`BOOND_MCP_UPLOAD_RELAY`). Paramètre nommé `uploadSlot` et non `uploadId`, pour respecter l'invariant « tout `*Id` est un ID Boond numérique ». Vérifié sur un locataire de production : PDF joint à une conversation attaché intact à un candidat, bibliothèque de transit vide après coup, corbeilles de premier et second niveau vides. Le fichier déposé est retrouvé en listant le dossier du slot, et l'URL de lecture est prise dans le listing ou, à défaut, dans la redirection de `/content` : SharePoint ne renvoie pas toujours l'annotation `downloadUrl`. Catalogue : 238 outils.
