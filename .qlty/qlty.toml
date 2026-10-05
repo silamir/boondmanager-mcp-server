@@ -1,0 +1,158 @@
+# .qlty/qlty.toml — Configuration Qlty pour Silamir
+#
+# Fichier déposé par le robot de conformité Silamir (règle `qlty-config`).
+# À relire, puis à adapter à la stack du dépôt avant de fusionner :
+#   https://github.com/silamir/silamir/wiki/Compliance-Controle-qlty-config
+#
+# Qlty est un outil unifié de qualité de code (linters, auto-formatters,
+# détection de duplication, métriques de complexité) et de couverture de
+# tests. Il analyse déjà ce dépôt sans ce fichier — l'App `qltysh` est installée
+# sur toute l'organisation : ce fichier rend l'analyse délibérée plutôt que
+# laissée aux valeurs par défaut de Qlty Cloud.
+#
+# Doc : https://docs.qlty.sh   —   Référence config : https://qlty.sh/d/qlty-toml
+#
+# Installation locale (une seule fois sur la machine) :
+#   curl https://qlty.sh | sh        # macOS / Linux
+#   # Windows : powershell -c "iwr https://qlty.sh | iex"
+#
+# Plutôt que d'adapter ce gabarit à la main, `qlty init` peut générer une
+# configuration à partir des fichiers détectés dans le dépôt.
+#
+# Commandes les plus utiles :
+#   qlty check                       # lint des fichiers changés
+#   qlty check --all                 # lint complet
+#   qlty fmt                         # auto-format des fichiers changés
+#   qlty smells --all                # détection de duplication, fonctions trop longues…
+#   qlty metrics --all --sort complexity --limit 10
+#   qlty plugins list                # voir les plugins disponibles
+#   qlty plugins enable <plugin>     # ajoute le plugin à ce fichier
+
+config_version = "0"
+
+# --- Patterns globaux --------------------------------------------------------
+
+exclude_patterns = [
+    # build outputs courants
+    "**/node_modules/**",
+    "**/.venv/**",
+    "**/venv/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/target/**",
+    "**/.next/**",
+    "**/coverage/**",
+    # fixtures & snapshots — généralement bruyants pour les linters
+    "**/fixtures/**",
+    "**/__fixtures__/**",
+    "**/__snapshots__/**",
+    "**/testdata/**",
+    # binaires & assets versionnés
+    "**/*.min.js",
+    "**/*.min.css",
+    "**/*.map",
+]
+
+test_patterns = [
+    "**/test/**",
+    "**/tests/**",
+    "**/spec/**",
+    "**/*.test.*",
+    "**/*.spec.*",
+    "**/*_test.*",
+    "**/*_spec.*",
+    "**/test_*.py",
+]
+
+# --- Sources de plugins ------------------------------------------------------
+
+# Source officielle Qlty — fournit le catalogue de plugins prêts à activer.
+[[source]]
+name = "default"
+default = true
+
+# --- Plugins activés ---------------------------------------------------------
+#
+# Seuls des plugins génériques, utiles à toute base de code, sont activés : le
+# gabarit est ainsi utilisable tel quel sur n'importe quelle stack.
+# Décommenter les plugins du langage utilisé par le projet.
+
+[[plugin]]
+name = "actionlint"        # lint syntaxique des workflows GitHub Actions
+
+# zizmor : analyse de SÉCURITÉ des workflows (injection de template,
+# permissions trop larges, artifact poisoning, actions non épinglées).
+# Complémentaire d'actionlint, qui ne vérifie que la syntaxe.
+[[plugin]]
+name = "zizmor"
+
+# markdownlint et yamllint en mode `comment` : sans `.markdownlint.json` ni
+# `.yamllint` dans le dépôt, ils appliquent leurs règles par défaut (longueur
+# de ligne à 80 colonnes notamment), qui feraient virer au rouge la première PR
+# touchant un README. Ils commentent sans bloquer ; passer en mode bloquant une
+# fois leurs règles ajustées au dépôt. Qlty ne lit pas `.markdownlint.yaml` :
+# le fichier de règles markdownlint doit être `.markdownlint.json`.
+[[plugin]]
+name = "markdownlint"
+mode = "comment"
+
+[[plugin]]
+name = "yamllint"
+mode = "comment"
+
+[[plugin]]
+name = "shellcheck"
+
+[[plugin]]
+name = "shfmt"
+
+[[plugin]]
+name = "trufflehog"        # détection de secrets
+
+[[plugin]]
+name = "osv-scanner"       # vulnérabilités dans les dépendances (OSV.dev)
+
+# Python (décommenter si projet Python)
+# [[plugin]]
+# name = "ruff"
+# [[plugin]]
+# name = "bandit"
+# [[plugin]]
+# name = "mypy"
+
+# Node / TypeScript
+# [[plugin]]
+# name = "eslint"
+# [[plugin]]
+# name = "prettier"
+
+# Go
+# [[plugin]]
+# name = "golangci-lint"
+
+# --- Triage : règles ignorées en connaissance de cause -----------------------
+
+# Le workflow de couverture de `silamir/template` est un squelette
+# volontairement désactivé (`if: false`) jusqu'à ce que le projet choisisse sa
+# stack de test.
+[[triage]]
+match.plugins = ["actionlint"]
+match.rules = ["actionlint:if-cond"]
+match.file_patterns = [".github/workflows/qlty-coverage.yml"]
+set.ignored = "true"
+
+# --- Smells (qualité maintenabilité) ----------------------------------------
+# Voir https://docs.qlty.sh pour les seuils par défaut (lignes, complexité,
+# arguments, duplication). Chaque projet peut ajuster ici si nécessaire.
+
+# [smells]
+# mode = "comment"          # comment | block | off
+#
+# [smells.boolean_logic]
+# threshold = 4
+#
+# [smells.file_complexity]
+# threshold = 70
+#
+# [smells.return_statements]
+# threshold = 8
