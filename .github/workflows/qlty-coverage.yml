@@ -1,0 +1,57 @@
+name: Qlty coverage
+
+# Publishes the vitest coverage report (lcov) to Qlty Cloud, so a PR shows
+# whether it moves coverage up or down (issue #330, Silamir compliance rule
+# `qlty-coverage`). The thresholds that actually gate a merge stay in
+# vitest.config.ts and run in ci.yml; this workflow only reports.
+#
+# Kept as its own file because the compliance bot only recognises this name.
+# Authentication: OIDC, no secret to manage (`id-token: write`).
+# Docs: https://docs.qlty.sh/coverage
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    name: Publish coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Before the tests: src/stdio-stdout.test.ts spawns dist/index.js.
+      - name: Build
+        run: npm run build
+
+      # vitest.config.ts emits coverage/lcov.info (reporter "lcov").
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Publish coverage to Qlty Cloud
+        uses: qltysh/qlty-action/coverage@08a0a862c159eae9b9003081da6663d96efef637 # v2.3.0
+        with:
+          oidc: true
+          files: coverage/lcov.info

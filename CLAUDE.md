@@ -1859,6 +1859,11 @@ read-only, confirmation *kept* for deletes. Pinned in
   - **GHCR** (`ghcr.io/silamir/boondmanager-mcp-server`) — multi-arch (`linux/amd64`+`linux/arm64`) with provenance + SBOM, tags `:X.Y.Z` `:X.Y` `:X` `:latest`
   - **Docker Hub** (`docker.io/{DOCKERHUB_USERNAME}/boondmanager-mcp-server`) — same multi-arch image, same tags. Gated on the `DOCKERHUB_TOKEN` repo secret being present, so forks without the secret skip Docker Hub without failing the release.
 - **Docker publish (manual)** (`.github/workflows/docker-publish.yml`): `workflow_dispatch`-only. Inputs: `tag` (required), `ref` (optional git ref to build), `platforms`, `push_latest` (boolean). Pushes to GHCR + Docker Hub. Use for release candidates, feature-branch images, or ad-hoc re-publishes.
+- **Qlty coverage** (`.github/workflows/qlty-coverage.yml`, issue #330): re-runs
+  `npm run test:coverage` on Node 22 and publishes `coverage/lcov.info` to Qlty
+  Cloud over OIDC (no secret). Reporting only — the gating thresholds stay in
+  `vitest.config.ts` via `ci.yml`. Its file name is what the Silamir compliance
+  bot checks (`qlty-coverage`), so don't fold it into `ci.yml`.
 - **CodeQL** (`.github/workflows/codeql.yml`): static analysis for JS/TS and GitHub Actions.
 - **API Monitor** (`.github/workflows/api-monitor.yml` + `.github/scripts/api-monitor.mjs`): Hebdomadaire (lundis 9h UTC). Sonde les fichiers RAML bruts de la doc BoondManager (`resources/{domaine camelCase}/{fichier}.raml` — la page d'index est bloquée par WAF, les fichiers statiques non), hashe leur contenu (SHA-256) et diffe contre `.github/api-snapshot.json`. Domaines = clés de `API_PATHS` (constants.ts) + `EXTRA_DOMAINS` (entités non couvertes). Zéro dépendance npm (fetch natif). PR de mise à jour du snapshot + issue GitHub si changements. Documentation complète: `.github/API_MONITORING.md`.
 - **Dependabot**: configured for npm and GitHub Actions.
