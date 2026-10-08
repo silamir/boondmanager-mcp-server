@@ -5,9 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.19.1] - 2026-10-08
+
+Correctif : `boond_documents_create` accepte tout type d'entité parente (besoins et positionnements inclus). Mises à jour de dépendances, dont `@modelcontextprotocol/sdk` 1.30.1 → 1.31.0 (révision de protocole négociée inchangée : `2025-11-25`). Aucun nom d'outil ne change. Catalogue : 238 outils.
+
 ### Fixed
 
 - **`boond_documents_create` accepte désormais n'importe quel type d'entité parente, besoins (`opportunity`) et positionnements inclus.** `parentType` était une énumération fermée de 23 valeurs qui ne contenait pas `opportunity` : joindre un fichier à un besoin / AO échouait côté connecteur (« le connecteur refuse le type opportunité ») alors que rien n'avait été envoyé à BoondManager. `parentType` devient une chaîne validée par motif (`^[A-Za-z][A-Za-z0-9]{0,63}$`, un mot alphanumérique sans espace ni séparateur) et est transmise telle quelle à `POST /documents` : l'API BoondManager reste l'autorité sur les types qu'elle accepte, et un type inconnu est refusé par elle (erreur remontée au modèle) sans qu'une liste figée côté MCP ait à suivre ses évolutions. `opportunity` est ajouté à la liste des types connus, reprise dans la description de l'outil pour guider le modèle ; les 23 valeurs existantes restent valides et inchangées. Vérifié sur un tenant de production : fichiers joints à un besoin (`opportunity`) et à un positionnement (`positioning`), visibles dans BoondManager. Aucun nom d'outil ne change. Catalogue : 238 outils.
+
+### Changed
+
+- Dépendances : `@modelcontextprotocol/sdk` 1.30.1 → 1.31.0 (`LATEST_PROTOCOL_VERSION` toujours `2025-11-25`), `proxy-addr` 2.0.7 → 2.0.8, `source-map-js` 1.2.1 → 1.2.2 et le groupe de dépendances de développement.
+- CI : publication de la couverture de tests sur Qlty Cloud (rapport seulement, les seuils bloquants restent dans `ci.yml`).
 
 ## [2.19.0] - 2026-10-02
 
