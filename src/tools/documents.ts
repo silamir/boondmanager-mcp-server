@@ -220,7 +220,9 @@ Returns: \`uploadSlot\`, \`uploadUrl\`, \`expiresAt\`, \`maxBytes\`, \`fileName\
 - \`uploadSlot\` : fichier déposé sur un slot de \`boond_documents_upload_slot\` — **la voie pour une pièce jointe de conversation** ;
 - \`fileContent\` (base64) + \`fileName\` : petit fichier inline, ${Math.round(INLINE_UPLOAD_MAX_BYTES / 1024 / 1024)} Mo max, réservé à un appelant qui détient déjà les octets exacts (un modèle ne retranscrit pas fiablement une pièce jointe en base64).
 
-Le format est vérifié sur les premiers octets du fichier (PDF, Office, ODF, RTF, images), pas sur l'extension. Cas d'usage typiques : CV d'un candidat (parentType=candidateResume, parsing=true pour l'analyse IA Boond), justificatif de note de frais (expensesReport), bon de commande, contrat...
+Le format est vérifié sur les premiers octets du fichier (PDF, Office, ODF, RTF, images), pas sur l'extension. Cas d'usage typiques : CV d'un candidat (parentType=candidateResume, parsing=true pour l'analyse IA Boond), pièce jointe d'un besoin / AO (parentType=opportunity), d'un positionnement (positioning), justificatif de note de frais (expensesReport), bon de commande, contrat...
+
+\`parentType\` n'est pas limité à une liste fermée : il est transmis tel quel à BoondManager, qui valide le type. Un type que l'API ne gère pas est refusé sans rien écrire.
 
 Returns: Métadonnées du document créé (ID).`,
       inputSchema: DocumentCreateSchema,

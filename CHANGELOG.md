@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`boond_documents_create` accepte désormais n'importe quel type d'entité parente, besoins (`opportunity`) et positionnements inclus.** `parentType` était une énumération fermée de 23 valeurs qui ne contenait pas `opportunity` : joindre un fichier à un besoin / AO échouait côté connecteur (« le connecteur refuse le type opportunité ») alors que rien n'avait été envoyé à BoondManager. `parentType` devient une chaîne validée par motif (`^[A-Za-z][A-Za-z0-9]{0,63}$`, un mot alphanumérique sans espace ni séparateur) et est transmise telle quelle à `POST /documents` : l'API BoondManager reste l'autorité sur les types qu'elle accepte, et un type inconnu est refusé par elle (erreur remontée au modèle) sans qu'une liste figée côté MCP ait à suivre ses évolutions. `opportunity` est ajouté à la liste des types connus, reprise dans la description de l'outil pour guider le modèle ; les 23 valeurs existantes restent valides et inchangées. Vérifié sur un tenant de production : fichiers joints à un besoin (`opportunity`) et à un positionnement (`positioning`), visibles dans BoondManager. Aucun nom d'outil ne change. Catalogue : 238 outils.
+
 ## [2.19.0] - 2026-10-02
 
 Relais d'upload pour joindre à BoondManager une pièce jointe de conversation (`boond_documents_upload_slot`, puis `uploadSlot` dans `boond_documents_create`), plus trois mises à jour de dépendances transitives (`ip-address`, `fast-uri`, `brace-expansion`). Aucun nom d'outil existant ne change. Catalogue : 238 outils.

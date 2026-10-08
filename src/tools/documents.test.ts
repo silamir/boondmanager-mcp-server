@@ -6,6 +6,7 @@ import { MAX_DOCUMENT_BYTES, MAX_IMAGE_BYTES, CHARACTER_LIMIT } from "../constan
 import { buildPdf, buildZip } from "../services/document-text.test.js";
 import { readLocalUpload, UploadRejectedError } from "../services/upload-source.js";
 import { uploadRelay } from "../services/upload-relay.js";
+import { DocumentCreateSchema, DocumentParentTypes } from "../schemas/index.js";
 
 vi.mock("../services/upload-relay.js", () => ({
   uploadRelay: { open: vi.fn(), claim: vi.fn() },
@@ -265,6 +266,36 @@ describe("registerDocumentTools", () => {
     });
   });
 
+  describe("boond_documents_create parentType", () => {
+    const parse = (parentType: unknown) =>
+      DocumentCreateSchema.safeParse({ parentType, parentId: 462, fileUrl: "https://example.com/offre.pdf" });
+
+    it("accepts every known parent type, besoins (opportunity) and positionnements included", () => {
+      expect(DocumentParentTypes).toContain("opportunity");
+      expect(DocumentParentTypes).toContain("positioning");
+      for (const type of DocumentParentTypes) expect(parse(type).success, type).toBe(true);
+    });
+
+    it("accepts a well-formed type that is not in the known list (the API stays the authority)", () => {
+      expect(parse("someFutureEntity").success).toBe(true);
+    });
+
+    it.each(["", " ", "opportunity ", "a b", "../project", "project/1", "1project", "x".repeat(65), "a=b&c", 42, null])(
+      "rejects a malformed parentType: %j",
+      (bad) => {
+        expect(parse(bad).success).toBe(false);
+      }
+    );
+
+    it("lists the besoin / positioning types in the tool description", () => {
+      registerDocumentTools(server);
+      const call = vi.mocked(server.registerTool).mock.calls.find((c) => c[0] === "boond_documents_create");
+      const config = call?.[1] as { description: string };
+      expect(config.description).toContain("parentType=opportunity");
+      expect(config.description).toContain("positioning");
+    });
+  });
+
   describe("boond_documents_create handler", () => {
     it("uploads via multipart form fields and returns the created id", async () => {
       vi.mocked(apiUploadForm).mockResolvedValue({
@@ -288,6 +319,32 @@ describe("registerDocumentTools", () => {
       });
       expect(result.structuredContent).toEqual({ id: "777", type: "document" });
       expect(result.content[0].text).toContain("777");
+    });
+
+    it("forwards an opportunity (besoin) parent to the API unchanged, via a relay slot", async () => {
+      const relayed = {
+        downloadUrl: "https://relay.example/dl",
+        filename: "offre.pdf",
+        contentType: "application/pdf",
+        size: 113 * 1024,
+        release: vi.fn().mockResolvedValue(undefined),
+      };
+      vi.mocked(uploadRelay.claim).mockResolvedValue(relayed as never);
+      vi.mocked(apiUploadForm).mockResolvedValue({ data: { id: "900", type: "document", attributes: {} } });
+      registerDocumentTools(server);
+      const slot = "21d7c7f5-bc3a-4a08-859d-8eebbc0e98c2";
+      const result = await handlerOf(
+        server,
+        "boond_documents_create"
+      )({ parentType: "opportunity", parentId: 462, uploadSlot: slot });
+      expect(apiUploadForm).toHaveBeenCalledWith("/documents", {
+        parentType: "opportunity",
+        parentId: "462",
+        fileUrl: "https://relay.example/dl",
+      });
+      expect(relayed.release).toHaveBeenCalledTimes(1);
+      expect(result.isError).toBeUndefined();
+      expect(result.structuredContent).toEqual({ id: "900", type: "document" });
     });
 
     it("uploads a local file as a binary multipart part, without fileUrl", async () => {

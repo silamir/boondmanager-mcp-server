@@ -2556,6 +2556,13 @@ export const DictionaryGetSchema = z
 // tant que `BOOND_MCP_UPLOAD_DIRS` n'est pas défini) et `fileContent` + `fileName`
 // (base64 inline, plafonné), `uploadSlot` (fichier déposé sur un slot du relais,
 // `services/upload-relay.ts`). Garde-fous : `services/upload-source.ts`.
+//
+// Types de parent connus de `POST /documents`, repris dans la description de
+// l'outil pour guider le modèle. La liste n'est PAS une garde : `parentType`
+// est transmis tel quel à BoondManager, qui reste l'autorité sur les types
+// qu'il accepte (un type inconnu est refusé par l'API, rien n'est écrit). Une
+// liste figée côté MCP refusait des entités que l'API gère (besoins /
+// opportunités, positionnements...) tant qu'elle n'avait pas été complétée.
 export const DocumentParentTypes = [
   "action",
   "resourceResume",
@@ -2580,15 +2587,25 @@ export const DocumentParentTypes = [
   "contract",
   "invoice",
   "providerinvoice",
+  "opportunity",
 ] as const;
+
+/** Forme d'un identifiant de type d'entité : un mot alphanumérique, sans séparateur ni espace. */
+export const DOCUMENT_PARENT_TYPE_PATTERN = /^[A-Za-z][A-Za-z0-9]{0,63}$/;
 
 export const DocumentCreateSchema = z
   .object({
     parentType: z
-      .enum(DocumentParentTypes)
+      .string()
+      .regex(
+        DOCUMENT_PARENT_TYPE_PATTERN,
+        "parentType : un mot alphanumérique (ex. 'opportunity', 'candidateResume'), sans espace ni séparateur."
+      )
       .describe(
-        "Type d'entité parente. Notables : 'candidateResume' (CV de candidat), 'resourceResume' (CV de ressource), " +
-          "'candidate'/'resource' (dossier administratif), 'company', 'project', 'invoice'..."
+        "Type d'entité parente, tel que l'attend l'API BoondManager. Notables : 'candidateResume' (CV de candidat), " +
+          "'resourceResume' (CV de ressource), 'candidate'/'resource' (dossier administratif), 'opportunity' (besoin / AO), " +
+          "'positioning', 'company', 'project', 'order', 'invoice', 'action'... " +
+          "Un type hors de cette liste est transmis tel quel ; l'API le valide et refuse un type inconnu."
       ),
     parentId: z.number().int().min(1).describe("ID de l'entité parente"),
     fileUrl: z
