@@ -19,6 +19,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -51,10 +52,13 @@ jobs:
           fi
           # Open a PR rather than pushing scraped third-party content straight
           # to main — this keeps the snapshot update under review/CI.
-          BRANCH="api-monitor/snapshot-${{ github.run_number }}"
+          BRANCH="api-monitor/snapshot-${GITHUB_RUN_NUMBER}"
           git checkout -b "$BRANCH"
           git commit -m "chore: update BoondManager API snapshot"
-          git push --set-upstream origin "$BRANCH"
+          # The checkout does not persist its token in .git/config (zizmor
+          # `artipacked`), so this push — the only one in the repository's
+          # workflows — authenticates explicitly, for this command only.
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${BRANCH}"
           gh pr create \
             --title "chore: update BoondManager API snapshot" \
             --body "Automated snapshot refresh from the API monitor. Review the diff before merging." \

@@ -46,6 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           ref: ${{ inputs.ref || github.ref }}
 
       - name: Set up QEMU
@@ -81,7 +82,7 @@ jobs:
           NUMERIC_VERSION="$(echo "$TAG_VERSION" | sed -E 's/-.*$//')"
           MAJOR_MINOR="$(echo "$NUMERIC_VERSION" | awk -F. '{print $1"."$2}')"
           MAJOR="$(echo "$NUMERIC_VERSION" | awk -F. '{print $1}')"
-          GHCR_REPO="ghcr.io/${{ github.repository_owner }}/boondmanager-mcp-server"
+          GHCR_REPO="ghcr.io/${GITHUB_REPOSITORY_OWNER}/boondmanager-mcp-server"
           DOCKERHUB_REPO="${DOCKERHUB_USERNAME}/boondmanager-mcp-server"
           {
             echo "tags<<EOF"

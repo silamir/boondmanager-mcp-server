@@ -19,6 +19,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
@@ -140,6 +142,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
@@ -183,6 +187,8 @@ jobs:
       MAX_TOOLS_LIST_KIB: 560
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
@@ -199,9 +205,11 @@ jobs:
 
       - name: Build and measure the base branch
         if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
-          git worktree add /tmp/base "origin/${{ github.base_ref }}"
+          git fetch --no-tags --depth=1 origin "$BASE_REF"
+          git worktree add /tmp/base "origin/$BASE_REF"
           cd /tmp/base
           npm ci
           npm run build
@@ -228,10 +236,10 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
         run: |
           MARKER='<!-- tools-list-size -->'
-          EXISTING=$(gh api "repos/${{ github.repository }}/issues/$PR/comments" --paginate \
+          EXISTING=$(gh api "repos/${GITHUB_REPOSITORY}/issues/$PR/comments" --paginate \
             --jq ".[] | select(.body | startswith(\"$MARKER\")) | .id" | head -n1)
           if [ -n "$EXISTING" ]; then
-            gh api --method PATCH "repos/${{ github.repository }}/issues/comments/$EXISTING" -F body=@/tmp/comment.md >/dev/null
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/$EXISTING" -F body=@/tmp/comment.md >/dev/null
           else
             gh pr comment "$PR" --body-file /tmp/comment.md
           fi

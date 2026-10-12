@@ -40,7 +40,13 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
           node-version: 22
-          cache: "npm"
+          # No npm cache, on purpose (zizmor `cache-poisoning`): the Actions
+          # cache is shared with every branch and PR, so a poisoned entry would
+          # be restored into the job that publishes to npm, GHCR and Docker
+          # Hub. setup-node v6 enables it by itself when package.json declares
+          # a packageManager, hence the explicit `false`. A release is rare
+          # enough to pay a cold `npm ci`.
+          package-manager-cache: false
 
       - name: Install dependencies
         run: npm ci
@@ -124,13 +130,15 @@ jobs:
         # therefore stranded that release with no way to finish it except a new
         # tag. Skipping an already-published version costs nothing (npm would
         # have refused it anyway) and turns a re-run into the obvious remedy.
+        env:
+          VERSION: ${{ steps.version.outputs.tag_version }}
+          NPM_TAG: ${{ steps.version.outputs.npm_tag }}
         run: |
-          VERSION="${{ steps.version.outputs.tag_version }}"
           if curl -fsS -o /dev/null "https://registry.npmjs.org/boondmanager-mcp-server/${VERSION}"; then
             echo "::notice::boondmanager-mcp-server@${VERSION} is already on npm — skipping publish (re-run of a partially completed release)."
             exit 0
           fi
-          npm publish --provenance --access public --tag "${{ steps.version.outputs.npm_tag }}"
+          npm publish --provenance --access public --tag "$NPM_TAG"
 
       # Strip devDependencies before packing — `mcpb pack` bundles the whole
       # node_modules tree, so without this the .mcpb ships vitest/typescript/
@@ -307,7 +315,7 @@ jobs:
           NUMERIC_VERSION="$(echo "$TAG_VERSION" | sed -E 's/-.*$//')"
           MAJOR_MINOR="$(echo "$NUMERIC_VERSION" | awk -F. '{print $1"."$2}')"
           MAJOR="$(echo "$NUMERIC_VERSION" | awk -F. '{print $1}')"
-          GHCR_REPO="ghcr.io/${{ github.repository_owner }}/boondmanager-mcp-server"
+          GHCR_REPO="ghcr.io/${GITHUB_REPOSITORY_OWNER}/boondmanager-mcp-server"
           DOCKERHUB_REPO="${DOCKERHUB_USERNAME}/boondmanager-mcp-server"
           # On a stable release we publish four moving tags per registry:
           #   :<exact>   pinned, the only tag we recommend in production manifests
@@ -370,7 +378,10 @@ jobs:
       # for the others' delivery.
       - name: Fail the release if the MCP Registry submission did not land
         if: steps.mcp_registry.outcome == 'failure' || steps.npm_propagation.outcome == 'failure'
+        env:
+          PROPAGATION_OUTCOME: ${{ steps.npm_propagation.outcome }}
+          REGISTRY_OUTCOME: ${{ steps.mcp_registry.outcome }}
         run: |
-          echo "::error::MCP Registry submission failed (npm propagation: ${{ steps.npm_propagation.outcome }}, publish: ${{ steps.mcp_registry.outcome }})."
+          echo "::error::MCP Registry submission failed (npm propagation: ${PROPAGATION_OUTCOME}, publish: ${REGISTRY_OUTCOME})."
           echo "npm, the GitHub Release and the container images were published. Re-run this job to retry the registry only."
           exit 1
