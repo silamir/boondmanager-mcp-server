@@ -10,6 +10,8 @@
 
 [![CI](https://github.com/silamir/boondmanager-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/silamir/boondmanager-mcp-server/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/silamir/boondmanager-mcp-server/actions/workflows/codeql.yml/badge.svg)](https://github.com/silamir/boondmanager-mcp-server/actions/workflows/codeql.yml)
+[![Maintainability](https://qlty.sh/badges/0997eb9b-5a78-4e51-b7b1-8239361f4428/maintainability.svg)](https://qlty.sh/gh/silamir/projects/boondmanager-mcp-server)
+[![Code Coverage](https://qlty.sh/badges/0997eb9b-5a78-4e51-b7b1-8239361f4428/coverage.svg)](https://qlty.sh/gh/silamir/projects/boondmanager-mcp-server)
 [![npm version](https://img.shields.io/npm/v/boondmanager-mcp-server.svg)](https://www.npmjs.com/package/boondmanager-mcp-server)
 [![npm downloads](https://img.shields.io/npm/dm/boondmanager-mcp-server.svg)](https://www.npmjs.com/package/boondmanager-mcp-server)
 [![Node.js](https://img.shields.io/node/v/boondmanager-mcp-server.svg)](https://nodejs.org/)
