@@ -27,7 +27,7 @@
 # Node 24 is LTS since October 2025; Node 26 only becomes LTS in October 2026
 # and was what the image shipped on. Bump the major here when the next line
 # enters Active LTS (see README-docker.md § Image de base).
-FROM node:26-alpine@sha256:143494b1da2945f061539253adc65e4f1569ddf07da2d384c022c791a9d90a4a AS builder
+FROM node:26-alpine@sha256:6f08a523443ddedf52941874c203475b0ad503e859ad70cb26ab8be9a517dbd5 AS builder
 WORKDIR /app
 
 # Install only what's needed to build, with cache-friendly layering.
@@ -43,7 +43,7 @@ RUN npm prune --omit=dev
 
 
 # ---- runtime ----
-FROM node:26-alpine@sha256:143494b1da2945f061539253adc65e4f1569ddf07da2d384c022c791a9d90a4a AS runtime
+FROM node:26-alpine@sha256:6f08a523443ddedf52941874c203475b0ad503e859ad70cb26ab8be9a517dbd5 AS runtime
 WORKDIR /app
 
 # OCI image annotations — make the image discoverable in registries.
