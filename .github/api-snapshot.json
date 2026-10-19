@@ -1,8 +1,8 @@
 {
   "formatVersion": 2,
-  "timestamp": "2026-06-10T20:34:38.086Z",
+  "timestamp": "2026-10-19T09:28:08.819Z",
   "url": "https://doc.boondmanager.com/api-externe/raml-build/",
-  "endpointsCount": 152,
+  "endpointsCount": 154,
   "endpoints": [
     {
       "path": "resources/absences/search.raml",
@@ -36,8 +36,8 @@
     },
     {
       "path": "resources/accounts/search.raml",
-      "sha256": "3dac297975382973759436bd2008d625e130ba97ebdefcb5bf77b236fc8b4a80",
-      "bytes": 4816,
+      "sha256": "572cc1bf5d95137d556b87b26d1be9e2f9cb2d2386acaa2056e25afa677b776e",
+      "bytes": 4879,
       "description": "Search & create accounts"
     },
     {
@@ -60,8 +60,8 @@
     },
     {
       "path": "resources/actions/search.raml",
-      "sha256": "e2e53d1890952b5df60f321348e06402539b8560c172c7cb4b6b3a660cff590b",
-      "bytes": 8174,
+      "sha256": "d82120e8a91b0cfd5b719ac4b751e8ce799f52bf92659f90f6c62e99bb818ffb",
+      "bytes": 8325,
       "description": "Search & create actions"
     },
     {
@@ -131,6 +131,12 @@
       "description": "Search installed apps"
     },
     {
+      "path": "resources/attachedFlags/search.raml",
+      "sha256": "42c6f29e9be5b65b870998d643c03dce5efab1ebd72d035a1cc46025627a107e",
+      "bytes": 1660,
+      "description": "Create attached flags"
+    },
+    {
       "path": "resources/businessUnits/default.raml",
       "sha256": "e1d655a7657def54fa26dae67fb55723876bf57e4c76b9e71e077314832af97f",
       "bytes": 248,
@@ -186,8 +192,8 @@
     },
     {
       "path": "resources/candidates/search.raml",
-      "sha256": "2856775f5af8f9fc79d4ae632c505e80d399b6e2ecf3c6e7b82b410394b18c26",
-      "bytes": 13343,
+      "sha256": "360b60c40778b4ff15ebd8b97459bade386e9cd4920d720d371be34861c59fa6",
+      "bytes": 13563,
       "description": "Search & create candidates"
     },
     {
@@ -330,8 +336,8 @@
     },
     {
       "path": "resources/documents/search.raml",
-      "sha256": "93def5c6b5ff1df8beb2ff589b1bcaca5196f0569bbd6d6376317bfe100014b6",
-      "bytes": 2795,
+      "sha256": "9b6f0c84cbf1aef1b6c8583ea6d87a0c29d65bab9a2ad74335695e115376e271",
+      "bytes": 3505,
       "description": "Create documents"
     },
     {
@@ -456,8 +462,8 @@
     },
     {
       "path": "resources/invoices/search.raml",
-      "sha256": "bddc9ebd77ef89002f215299b03984b9c8f4c7a06dc342ac6e2ab03f062ef74b",
-      "bytes": 10241,
+      "sha256": "3d590057ed0ab74735bfbb7d393ee5f0035ea22eb8b40ff3083c2ac80d6c4d2a",
+      "bytes": 10361,
       "description": "Search invoices"
     },
     {
@@ -468,8 +474,8 @@
     },
     {
       "path": "resources/logs/search.raml",
-      "sha256": "945b35be44e2ca3e7adae213256583e44a15ec38d9a0c4f3666a217de5856f78",
-      "bytes": 11055,
+      "sha256": "877a739e6bead78b0fe2a3a1260495aab9cb36d83c51f9273ee506ec2093d42b",
+      "bytes": 11376,
       "description": "Search logs"
     },
     {
@@ -486,8 +492,8 @@
     },
     {
       "path": "resources/marketplace/search.raml",
-      "sha256": "f1c2718f7707b0b753ea33dd6f67a7b80cb407e46812cf24a14e7445900e6cc5",
-      "bytes": 2270,
+      "sha256": "6603ee30baefd8b61147e74445926d49ca6791668f3090276ee98815f1e62b93",
+      "bytes": 2661,
       "description": "Search marketplace's Apps"
     },
     {
@@ -528,8 +534,8 @@
     },
     {
       "path": "resources/opportunities/search.raml",
-      "sha256": "c9c326f7b3a0875b61e9c54df1f46870147bbc62b84ca3da392da868db58b155",
-      "bytes": 11228,
+      "sha256": "fbcda422d87f827e07b5bc1678b9b0a8b73dc638c611f456bce53bc1736d1e3e",
+      "bytes": 11005,
       "description": "Search & create opportunities"
     },
     {
@@ -570,8 +576,8 @@
     },
     {
       "path": "resources/orders/search.raml",
-      "sha256": "cb2e9c66e399a91605ee2e9ceab4099820a6cc8cee2a294ddf00a90e9810c48d",
-      "bytes": 7614,
+      "sha256": "4b14024260b39c2efed35f8c6fc3e41a001d5797c9886e5893e5628a5ba0f83c",
+      "bytes": 8080,
       "description": "Search orders"
     },
     {
@@ -606,8 +612,8 @@
     },
     {
       "path": "resources/planningAbsences/search.raml",
-      "sha256": "88ececab6f733286d83434d789dda92afc4fee82f23b44079f0448f92e8996d0",
-      "bytes": 1423,
+      "sha256": "30430e73ee77a94e3f71340b3cbd4f7c2fc6c56ee834e955bad69353b2911bae",
+      "bytes": 1468,
       "description": "Search planning absences"
     },
     {
@@ -726,8 +732,8 @@
     },
     {
       "path": "resources/providerInvoices/search.raml",
-      "sha256": "0c6764d8335683c799e1d1820b36cb76788b947d1051268498347b9dd3d49a9a",
-      "bytes": 6128,
+      "sha256": "95e5a64d424f0c2af8fadbaad8e555aa5ef8e58750e787b53b6ba3d12c28d13a",
+      "bytes": 6708,
       "description": "Search provider invoices"
     },
     {
@@ -774,9 +780,9 @@
     },
     {
       "path": "resources/reportingProductionPlans/search.raml",
-      "sha256": "60254196763680731c685e0861ff7a9e119a3a53a17b2f67e9b20948249a880b",
-      "bytes": 4897,
-      "description": "Search production plans reporting"
+      "sha256": "e64042e580085af0470c74f71bc0fb39a9499f17dad4100a52864294f4a62fcd",
+      "bytes": 5660,
+      "description": "|"
     },
     {
       "path": "resources/reportingProjects/search.raml",
@@ -786,15 +792,15 @@
     },
     {
       "path": "resources/reportingResources/search.raml",
-      "sha256": "183a51d1d4719f3c36a8054ea7fa400528148152d10e519987f43c7b8f87742b",
-      "bytes": 6027,
+      "sha256": "8c6b4ce020c62368643566ab70c54f1cf9576fec023546ee61a9e6c56b0ed840",
+      "bytes": 6072,
       "description": "Search resources reporting"
     },
     {
       "path": "resources/reportingSynthesis/search.raml",
-      "sha256": "fd86686fefe4c064c40ad86390fa5e8f3fdd0072ae08a1b31c3c92bddfa5841b",
-      "bytes": 6357,
-      "description": "Search synthesis reporting"
+      "sha256": "4c211d4f644d2cff9725ee40b6c6e3963937912d9dd6af6099efc472a5aec5ab",
+      "bytes": 6678,
+      "description": "|"
     },
     {
       "path": "resources/resources/actions.raml",
@@ -828,8 +834,8 @@
     },
     {
       "path": "resources/resources/search.raml",
-      "sha256": "969a4400f67d37ba3cabeb6edff80a4fee79c66af50919ea4a31e6e36517f53f",
-      "bytes": 14524,
+      "sha256": "917cd8fdf58dec4ef26fe83e1e26011f8b9f5adc16deb14ec4b51014bc976bd1",
+      "bytes": 16364,
       "description": "Search & create resources"
     },
     {
@@ -849,6 +855,12 @@
       "sha256": "e26c52c8703a055f30c3044c9bed1b6f206058243a625e93c5ef469916031e02",
       "bytes": 498,
       "description": "Search & create roles"
+    },
+    {
+      "path": "resources/targets/search.raml",
+      "sha256": "90a05e5354728acaaf36f6313ae0318b37391cdd39455b042fed59e5345fc00b",
+      "bytes": 161,
+      "description": "Create targets"
     },
     {
       "path": "resources/threads/default.raml",
@@ -894,8 +906,8 @@
     },
     {
       "path": "resources/validations/search.raml",
-      "sha256": "cb4c380a138d8cc050d3c397560e449c9cb6ba990f5fec1e9a99e8ad6232f85a",
-      "bytes": 2526,
+      "sha256": "f458e6b117504887cd835eb4453be2e65c07fad223d53c2bc69c2cac93dd3469",
+      "bytes": 2820,
       "description": "Search validations"
     },
     {
@@ -906,8 +918,8 @@
     },
     {
       "path": "traits/searchable.raml",
-      "sha256": "b7c1d6006f8f0db05f84c74a3ff20862949bd826b7374c6ea2e4367e1c543047",
-      "bytes": 1716,
+      "sha256": "7dd90196279972c69e31abfa8339199de7a0e7a6991c0dc45f25955f18ce8907",
+      "bytes": 1766,
       "description": ""
     },
     {
