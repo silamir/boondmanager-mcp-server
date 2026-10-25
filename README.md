@@ -37,6 +37,16 @@ Serveur MCP (Model Context Protocol) pour l'API BoondManager, permettant a Claud
 
 > **Sorties structurées.** En plus du texte lisible, les outils `search`, `create`, `update` et `delete` renvoient un `structuredContent` conforme à un `outputSchema` MCP : `search` → `{ total?, count, items[] }` (résumés compacts, pas les ressources JSON:API complètes), `create`/`update` → `{ id?, type? }`, `delete` → `{ id, deleted, reason? }`. Les clients MCP qui exploitent les sorties structurées obtiennent une référence d'entité fiable pour chaîner les appels. Les outils `get` restent en texte seul (leur texte est déjà du JSON exploitable).
 
+## Sommaire
+
+- [Domaines couverts](#domaines-couverts)
+- [Prompts pré-orchestrés](#prompts-pre-orchestres)
+- [Installation](#installation) : [Claude Desktop](#claude-desktop-one-click), [Claude Code](#claude-code-plugin-recommande), [Cursor](#cursor), [VS Code](#vs-code-github-copilot--agent-mcp)
+- [Configuration](#configuration) et [authentification](#authentification)
+- [Transports](#transports) (stdio, HTTP + OAuth2, Docker)
+- [Exemples d'utilisation](#exemples-dutilisation)
+- [Dépannage](#depannage)
+
 ## Domaines couverts
 
 ### CRM & Commercial
