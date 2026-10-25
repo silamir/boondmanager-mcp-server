@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.19.2] - 2026-10-25
+
+Version de maintenance : mises à jour de dépendances, dont `@modelcontextprotocol/sdk` 1.31.0 → 1.32.1 (révision de protocole négociée inchangée : `2025-11-25`), et correctifs de sécurité transitifs. Aucun nom d'outil ne change. Catalogue : 238 outils.
+
+### Security
+
+- `body-parser` 2.3.0 → 2.4.0 (GHSA-27r3-jxmh-p828, déni de service via des octets en fin de corps de requête compressé — sévérité haute) et `fast-uri` 3.1.8 → 3.1.9 (quatre avis de sévérité modérée), via `npm audit fix`. `ip-address` 10.7.2 → 10.7.4 et `hono` 4.13.7 → 4.13.13.
+
+### Changed
+
+- Dépendances : `@modelcontextprotocol/sdk` 1.31.0 → 1.32.1 (`LATEST_PROTOCOL_VERSION` toujours `2025-11-25`), `pino` 10.3.1 → 10.4.0, `unpdf` 1.8.1 → 1.9.0, `zod` 4.6.5 → 4.6.7, image de base Docker `node:24-alpine` rafraîchie, et les groupes de dépendances de développement et de GitHub Actions.
+- CI : correction des constats zizmor remontés par Qlty (`artipacked`, `template-injection`, `cache-poisoning`).
+- README : badges Qlty de maintenabilité et de couverture.
+
 ## [2.19.1] - 2026-10-08
 
 Correctif : `boond_documents_create` accepte tout type d'entité parente (besoins et positionnements inclus). Mises à jour de dépendances, dont `@modelcontextprotocol/sdk` 1.30.1 → 1.31.0 (révision de protocole négociée inchangée : `2025-11-25`). Aucun nom d'outil ne change. Catalogue : 238 outils.
