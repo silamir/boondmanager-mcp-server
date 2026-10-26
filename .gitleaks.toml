@@ -1,0 +1,66 @@
+# Gitleaks configuration for Silamir template
+# Docs: https://github.com/gitleaks/gitleaks
+# Extends the default ruleset, adds project-specific allowlist below.
+
+[extend]
+useDefault = true
+
+# ----------------------------------------------------------------------------
+# Allowlist globale — À GARDER MINIMALE.
+#
+# Toute entrée ici crée un angle mort : un vrai secret commité dans un chemin
+# allowlisté ne sera jamais signalé. On n'exclut donc que des chemins où un
+# secret ne peut pas être exploitable :
+#   - les lockfiles (hashes d'intégrité, faux positifs à haute densité)
+#   - ce fichier lui-même (il contient les patterns de détection)
+#
+# Volontairement RETIRÉS de cette liste (ils y étaient auparavant) :
+#   - `.github/workflows/**` : inutile, `${{ secrets.X }}` n'est pas une valeur
+#     de secret et gitleaks ne le signale pas. En revanche un token collé en
+#     dur dans un workflow est exactement ce qu'on veut détecter.
+#   - `.pre-commit-config.yaml` : même raisonnement.
+#   - `docs/`, `examples/`, `tests/fixtures/` : ce sont des emplacements
+#     ordinaires de fuite accidentelle (capture d'écran de config, exemple
+#     « qui marche » copié depuis la prod).
+#
+# Si un fichier de fixtures produit vraiment des faux positifs, préférer une
+# allowlist ciblée par règle (voir le bloc commenté en bas) plutôt qu'une
+# exclusion de chemin globale.
+# ----------------------------------------------------------------------------
+
+[allowlist]
+description = "Allowlist minimale — lockfiles et config gitleaks"
+
+paths = [
+  '''(?i)\.gitleaks\.toml$''',
+  '''(?i)\.lock$''',
+  '''(?i)package-lock\.json$''',
+  '''(?i)pnpm-lock\.ya?ml$''',
+  '''(?i)yarn\.lock$''',
+  '''(?i)poetry\.lock$''',
+  '''(?i)uv\.lock$''',
+  '''(?i)Cargo\.lock$''',
+  '''(?i)go\.sum$''',
+  '''(?i)composer\.lock$''',
+]
+
+# Placeholders explicites uniquement. Les motifs trop génériques (`<[^>]+>`,
+# `xxxx+`) ont été retirés : appliqués globalement, ils masquaient toute valeur
+# contenant un chevron ou une suite de « x ».
+regexes = [
+  '''(?i)(your|my|example|placeholder|dummy|fake|sample)[_\-]?(secret|token|key|password|pwd|api_?key)''',
+  '''(?i)^(changeme|change_me|to_?be_?replaced|replace_?me)$''',
+  '''(?i)\$\{\{\s*secrets\.[A-Z0-9_]+\s*\}\}''',
+  '''(?i)\$\{?[A-Z0-9_]*(SECRET|TOKEN|PASSWORD|API_?KEY)[A-Z0-9_]*\}?$''',
+]
+
+# --- Allowlists ciblées par règle -------------------------------------------
+#
+# Modèle à copier si un chemin précis produit un faux positif précis. Toujours
+# préférer ceci à un ajout dans l'allowlist globale ci-dessus.
+#
+# [[rules]]
+# id = "generic-api-key"
+#   [[rules.allowlists]]
+#   description = "clés de test du SDK, non exploitables"
+#   paths = ['''(?i)^tests/fixtures/stripe/''']

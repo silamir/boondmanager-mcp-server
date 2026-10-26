@@ -1865,6 +1865,17 @@ read-only, confirmation *kept* for deletes. Pinned in
   `vitest.config.ts` via `ci.yml`. Its file name is what the Silamir compliance
   bot checks (`qlty-coverage`), so don't fold it into `ci.yml`.
 - **CodeQL** (`.github/workflows/codeql.yml`): static analysis for JS/TS and GitHub Actions.
+- **Silamir compliance checks** (issue #355): the repository ruleset
+  « Protection de main » requires five status checks — `Titre de PR`
+  (`pr-title.yml`, verbatim from the compliance wiki), `Lint PR commits`
+  (`commitlint.yml` + `commitlint.config.cjs`), `Scan for secrets`
+  (`gitleaks.yml` + `.gitleaks.toml`, full history, checksum-verified
+  binary), `Pre-commit hooks` (`pre-commit.yml`: the husky / lint-staged
+  chain — prettier + eslint — over the whole tree) and `Qlty check`. The
+  **job names are the contract**: rename one and every merge blocks waiting
+  for a check nothing produces. The same ruleset requires one code-owner
+  approval, and `CODEOWNERS` names a single owner — who cannot approve their
+  own PR.
 - **API Monitor** (`.github/workflows/api-monitor.yml` + `.github/scripts/api-monitor.mjs`): Hebdomadaire (lundis 9h UTC). Sonde les fichiers RAML bruts de la doc BoondManager (`resources/{domaine camelCase}/{fichier}.raml` — la page d'index est bloquée par WAF, les fichiers statiques non), hashe leur contenu (SHA-256) et diffe contre `.github/api-snapshot.json`. Domaines = clés de `API_PATHS` (constants.ts) + `EXTRA_DOMAINS` (entités non couvertes). Zéro dépendance npm (fetch natif). PR de mise à jour du snapshot + issue GitHub si changements. Documentation complète: `.github/API_MONITORING.md`.
 - **Dependabot**: configured for npm and GitHub Actions.
 - **Distribution**: `docs/distribution.md` is the single source of truth for what ships where and the few manual one-time actions still outstanding (GitHub topics, awesome-mcp-servers PR, Glama/PulseMCP/mcp.so submissions).
