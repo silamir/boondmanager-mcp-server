@@ -1,0 +1,33 @@
+# Vérifie que le titre de la pull request suit Conventional Commits.
+# Convention : https://github.com/silamir/silamir/wiki/Compliance-Controle-pr-title-lint
+name: Titre de PR
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions: {}
+
+jobs:
+  titre:
+    name: Titre de PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Vérifier le titre (Conventional Commits)
+        env:
+          # Jamais `${{ … }}` directement dans le script : le titre est
+          # écrit par l'auteur de la PR, ce serait une injection de commande.
+          TITRE: ${{ github.event.pull_request.title }}
+        run: |
+          types='build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test'
+          motif="^($types)(\([a-zA-Z0-9._/-]+\))?!?: [^ ](.*[^. ])?\$"
+          if (( ${#TITRE} > 100 )); then
+            echo "::error title=Titre de PR trop long::${#TITRE} caractères, 100 au maximum."
+            exit 1
+          fi
+          if [[ ! "$TITRE" =~ $motif ]]; then
+            echo "::error title=Titre de PR non conforme::Attendu « type(portée): description »."
+            echo "Exemple : fix(api): corriger la pagination"
+            exit 1
+          fi
