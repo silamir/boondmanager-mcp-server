@@ -1,0 +1,44 @@
+name: Commitlint
+
+# Validates every commit of the PR against Conventional Commits
+# (commitlint.config.cjs). Required check "Lint PR commits" on main.
+# Adapted from silamir/template.
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  lint:
+    name: Lint PR commits
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: 22
+
+      # Pinned and installed with --no-save: commitlint is a CI-only tool here,
+      # it does not belong in package.json / the published tarball.
+      - name: Install commitlint (pinned)
+        run: npm install --no-save --no-audit --no-fund @commitlint/cli@21.2.2 @commitlint/config-conventional@21.2.2
+
+      - name: Validate commit messages
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: npx commitlint --verbose --from="$BASE_SHA" --to="$HEAD_SHA"
