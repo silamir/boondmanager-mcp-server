@@ -35,7 +35,9 @@ jobs:
       # Pinned and installed with --no-save: commitlint is a CI-only tool here,
       # it does not belong in package.json / the published tarball.
       - name: Install commitlint (pinned)
-        run: npm install --no-save --no-audit --no-fund @commitlint/cli@21.2.2 @commitlint/config-conventional@21.2.2
+        run: >-
+          npm install --no-save --no-audit --no-fund
+          @commitlint/cli@21.2.2 @commitlint/config-conventional@21.2.2
 
       - name: Validate commit messages
         env:

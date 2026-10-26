@@ -1,0 +1,32 @@
+# Configuration yamllint, lue par le plugin yamllint de Qlty.
+#
+# Même logique que .markdownlint.json : les règles vivent dans un fichier de
+# config plutôt que dans les options de l'outil, pour qu'un dev qui lance
+# yamllint en local voie exactement ce que voit la CI.
+#
+# Doc : https://yamllint.readthedocs.io/en/stable/configuration.html
+
+extends: default
+
+rules:
+  # Les workflows GitHub Actions et dependabot.yml ne commencent pas par ---.
+  document-start: disable
+
+  # Aligné sur la limite d'en-tête de commit du projet (100).
+  line-length:
+    max: 100
+    allow-non-breakable-words: true
+
+  # Les commentaires de section (« # --- Titre --- ») ne sont pas indentés
+  # comme le contenu qui les suit, et c'est volontaire.
+  comments-indentation: disable
+
+  # Un seul espace avant un commentaire de fin de ligne : c'est le format que
+  # Dependabot écrit lui-même pour les pins SHA (`uses: x@<sha> # v1.2.3`).
+  # Exiger 2 espaces reviendrait à se battre contre le bot à chaque bump.
+  comments:
+    min-spaces-from-content: 1
+
+  # `on:` en YAML 1.1 est un booléen ; c'est la clé standard des workflows.
+  truthy:
+    check-keys: false
