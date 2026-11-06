@@ -75,6 +75,7 @@ npm run plugin:manifest:check # Fail if they are stale (used in CI)
 ```
 
 Run a single test file:
+
 ```bash
 npx vitest run src/tools/candidates.test.ts
 ```
@@ -287,8 +288,8 @@ unless `BOOND_MCP_CONFIRM_REJECT=0|false|no|off`. `structuredContent` carries
 the response's `dependsOn`. The `id` is the **validation's**, listed by
 `boond_validations_search`, not the report's.
 
-**Alerts** (issue #255, domain `alerts`, 42 in total; semantics fixed by
-#311 after the live read): `GET /alerts` returns the **configuration** of the
+**Alerts** (issue #255, domain `alerts`, 42 in total; semantics fixed
+by #311 after the live read): `GET /alerts` returns the **configuration** of the
 user's dashboard indicators, not computed occurrences — one row per indicator
 (`module`: `actions` | `activityExpenses` | `resources`…; `indicator`:
 `contractsEndedUpcoming`, `resourcesProbationaryDateUpcoming`,
@@ -347,7 +348,7 @@ resource's `workUnitTypesAllowed`, production types filtered out;
 confirmed live on 2026-09-26 (#311): the included resource carries
 `workUnitTypesAllowed` and the seven absence types of the agency come out
 with their `reference` (3 sans solde, 4 RTT, 5 maladie, …), production types
-filtered. 
+filtered.
 `boond_rights_get(entity, id)` (`src/tools/rights.ts`, registered by
 `registerApplicationTools`, enum narrowed by the access policy) reads
 `GET /{collection}/{id}/rights` for the 21 entities whose `rights.raml`
@@ -648,9 +649,9 @@ resolve to a `user` message guiding the model through a fixed tool
 sequence with the correct filter names. Server-side we *only* assemble
 the runbook — the LLM still drives the calls. Relative periods
 ("cette semaine", "avril 2026", `2026-W14`, "D → D+H") are resolved to
-literal ISO dates **on the server** by `src/prompts/periods.ts` (issue
-#260) — `build(args, now?)` takes the reference date so tests pin the week
-and year boundaries; unknown wording keeps the caller's words and states
+literal ISO dates **on the server** by `src/prompts/periods.ts`
+(issue #260) — `build(args, now?)` takes the reference date so tests pin the
+week and year boundaries; unknown wording keeps the caller's words and states
 today's date. `*_id` arguments carry a `completions/complete` completer
 (`completable()` from the SDK) that searches the entity and returns
 *labels* — the arguments accept labels, and `CompleteResult.values` is
@@ -690,9 +691,10 @@ call. Arbitrary dictionary types still go through the
 `boond_application_dictionary` tool. Every `DICTIONARIES` path was verified
 against the live dictionary (issue #261, 2026-09-26); the ones the API does
 **not** publish are named in the source next to the table — `states/contracts`,
-`states/validations` (workflow strings, #250), absence types (`/absences-reports/default`,
-#257), `typeOf/{candidates,opportunities,companies}` — so nobody adds a slug
-that resolves to the "path not found" body.
+`states/validations` (workflow strings, #250), absence types
+(`/absences-reports/default`, #257),
+`typeOf/{candidates,opportunities,companies}` — so nobody adds a slug that
+resolves to the "path not found" body.
 
 **Dictionary cache** (`src/services/dictionary.ts`, issue #226): the
 `/application/dictionary` payload is cached in memory, but it is **not a global
@@ -1071,7 +1073,7 @@ How it is wired, and why it is wired that way:
   `prompts/list`, `resources/list` and `resources/templates/list`, so adding a
   tool means editing those two sentences (and `TOOLS.md`, which CI regenerates).
 
-### Test file template (for read-only search+get domains):
+### Test file template (for read-only search+get domains)
 
 ```typescript
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -1260,6 +1262,7 @@ of them across 182 tools was not enough to pick correctly. Two notes on it:
 ## MCP Annotations
 
 Every tool must declare annotations:
+
 - `readOnlyHint: true` for search/get operations
 - `destructiveHint: true` for delete operations
 - `idempotentHint: true` for search/get/update operations
@@ -1731,6 +1734,7 @@ Implementation: `src/services/oauth.ts` (AsyncLocalStorage context,
 header parsing, metadata builder), `src/transports/http.ts` (Bearer
 extraction + discovery endpoint + 401 challenge), `src/services/http/auth.ts`
 (`oauthContextAuth` provider). Full setup guide: `docs/oauth.md`.
+
 - `BOOND_BASE_URL` (optional, defaults to `https://ui.boondmanager.com/api`)
 - `BOOND_HTTP_TIMEOUT_MS` (optional, defaults to `30000`) — per-request timeout for the BoondManager HTTP client. Non-numeric / non-positive values fall back to the default. A timeout surfaces as an `Error` whose message includes the configured value and the failing endpoint.
 - `BOOND_HTTP_MAX_RETRIES` (optional, defaults to `2`) — number of additional attempts after the first failure. Set to `0` to disable retries. Retry policy: GET retries on 5xx / 429 / network / timeout; non-GET retries only on 429 (idempotency safety). `Retry-After` is honoured.
@@ -1742,6 +1746,7 @@ extraction + discovery endpoint + 401 challenge), `src/services/http/auth.ts`
 The MCPB spec (`manifest_version: 0.3`) does **not** expose an `update_url` field, and Claude Desktop's auto-update mechanism only applies to extensions in Anthropic's curated directory. For third-party `.mcpb` installs, the closest practical equivalent is a startup notification: `src/services/update-checker.ts` queries `https://registry.npmjs.org/<pkg>/latest` (3 s timeout), parses the local `package.json` version, and — if a newer release exists — emits a structured `warn` log via the central pino logger (`event: "update_available"`). Claude Desktop captures stderr into its Developer log viewer, so the message is discoverable there; the user still downloads the new `.mcpb` manually from GitHub Releases.
 
 Behavior notes:
+
 - Fire-and-forget at startup in both stdio and HTTP transports — never blocks the server boot.
 - Fails silently on network errors, non-2xx responses, malformed bodies, or unparseable semver; the server keeps running normally.
 - Prerelease suffixes (`-rc.1`, `-beta`) are stripped before comparison (only the `X.Y.Z` core is compared).
