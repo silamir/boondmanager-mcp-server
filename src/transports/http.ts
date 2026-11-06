@@ -870,44 +870,23 @@ export async function startHttpTransport(
       }
 
       // Core MCP dispatch — shared between OAuth and static-auth paths.
-      const dispatchMcpRequest = async (): Promise<void> => {
-        if (options.stateless && req.method !== "POST") {
-          reject(405, "Only POST is supported in stateless mode");
-          return;
-        }
+      const serveStateless = async (parsedBody: unknown): Promise<void> => {
+        // No `sessionIdGenerator` = stateless mode (the SDK documents the
+        // key as `undefined`; omitting it is the same and type-checks under
+        // exactOptionalPropertyTypes).
+        const transport = new StreamableHTTPServerTransport({
+          enableJsonResponse: options.enableJsonResponse,
+        });
+        const server = createServerFactory();
+        res.on("close", () => {
+          void transport.close();
+          void server.close();
+        });
+        await server.connect(transport);
+        await transport.handleRequest(req, res, parsedBody);
+      };
 
-        // The body is read *here*, once, under the 1 MiB streaming cap, and
-        // handed to the SDK pre-parsed on every path below — the SDK's own
-        // reader has no ceiling, so letting it read on any path would leave
-        // that path uncapped (#227). GET (SSE stream) and DELETE carry no body
-        // and the SDK never reads one for them.
-        let parsedBody: unknown;
-        if (req.method === "POST") {
-          const read = await readJsonBody(req);
-          if (read.kind === "invalid") {
-            reject(400, "Parse error: Invalid JSON", JSON_RPC_PARSE_ERROR);
-            return;
-          }
-          parsedBody = read.value;
-        }
-
-        if (options.stateless) {
-          // No `sessionIdGenerator` = stateless mode (the SDK documents the
-          // key as `undefined`; omitting it is the same and type-checks under
-          // exactOptionalPropertyTypes).
-          const transport = new StreamableHTTPServerTransport({
-            enableJsonResponse: options.enableJsonResponse,
-          });
-          const server = createServerFactory();
-          res.on("close", () => {
-            void transport.close();
-            void server.close();
-          });
-          await server.connect(transport);
-          await transport.handleRequest(req, res, parsedBody);
-          return;
-        }
-
+      const serveStateful = async (parsedBody: unknown): Promise<void> => {
         // Stateful mode: route by Mcp-Session-Id header
         const sessionIdHeader = req.headers["mcp-session-id"];
         const sessionId = Array.isArray(sessionIdHeader) ? sessionIdHeader[0] : sessionIdHeader;
@@ -991,6 +970,34 @@ export async function startHttpTransport(
         const server = createServerFactory();
         await server.connect(transport);
         await transport.handleRequest(req, res, body);
+      };
+
+      const dispatchMcpRequest = async (): Promise<void> => {
+        if (options.stateless && req.method !== "POST") {
+          reject(405, "Only POST is supported in stateless mode");
+          return;
+        }
+
+        // The body is read *here*, once, under the 1 MiB streaming cap, and
+        // handed to the SDK pre-parsed on every path below — the SDK's own
+        // reader has no ceiling, so letting it read on any path would leave
+        // that path uncapped (#227). GET (SSE stream) and DELETE carry no body
+        // and the SDK never reads one for them.
+        let parsedBody: unknown;
+        if (req.method === "POST") {
+          const read = await readJsonBody(req);
+          if (read.kind === "invalid") {
+            reject(400, "Parse error: Invalid JSON", JSON_RPC_PARSE_ERROR);
+            return;
+          }
+          parsedBody = read.value;
+        }
+
+        if (options.stateless) {
+          await serveStateless(parsedBody);
+          return;
+        }
+        await serveStateful(parsedBody);
       };
 
       if (options.staticAuth) {
