@@ -1,7 +1,6 @@
 import { createServer, IncomingMessage, ServerResponse, type Server } from "node:http";
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { logger, generateCorrelationId } from "../services/logger.js";
@@ -354,17 +353,6 @@ function extractHostname(hostHeader: string | string[] | undefined): string | un
 /** `{ [key]: value }` when the value is defined, `{}` otherwise — keeps optional keys absent rather than `undefined`. */
 function optional<K extends string, V>(key: K, value: V | undefined): { [P in K]?: V } {
   return value === undefined ? {} : ({ [key]: value } as { [P in K]?: V });
-}
-
-/**
- * SDK 1.30 declares `Transport.onclose` as `onclose?: () => void` but the
- * `StreamableHTTPServerTransport` accessor as `(() => void) | undefined`. The
- * SDK assigns one to the other internally; under `exactOptionalPropertyTypes`
- * the two are incompatible at *our* call sites only. Delete this adapter when
- * the SDK aligns the two declarations.
- */
-function asTransport(transport: StreamableHTTPServerTransport): Transport {
-  return transport as unknown as Transport;
 }
 
 export function resolveHttpOptions(): HttpTransportOptions {
@@ -882,6 +870,110 @@ export async function startHttpTransport(
       }
 
       // Core MCP dispatch — shared between OAuth and static-auth paths.
+      const serveStateless = async (parsedBody: unknown): Promise<void> => {
+        // No `sessionIdGenerator` = stateless mode (the SDK documents the
+        // key as `undefined`; omitting it is the same and type-checks under
+        // exactOptionalPropertyTypes).
+        const transport = new StreamableHTTPServerTransport({
+          enableJsonResponse: options.enableJsonResponse,
+        });
+        const server = createServerFactory();
+        res.on("close", () => {
+          void transport.close();
+          void server.close();
+        });
+        await server.connect(transport);
+        await transport.handleRequest(req, res, parsedBody);
+      };
+
+      // Drops a session from the map and tears it down. Idempotent: if the
+      // sweep / onsessionclosed already started the teardown, destroySession
+      // shares the same memoised promise rather than re-closing.
+      const forgetSession = (id: string | undefined): boolean => {
+        const entry = id ? sessions.get(id) : undefined;
+        if (!id || !entry) return false;
+        sessions.delete(id);
+        void destroySession(entry);
+        return true;
+      };
+
+      // A request naming a session. Returns true when it has been answered.
+      const routeExistingSession = async (
+        sessionId: string,
+        identity: string,
+        parsedBody: unknown
+      ): Promise<boolean> => {
+        const entry = sessions.get(sessionId);
+        if (entry && entry.ownerIdentity === identity) {
+          entry.lastActivityAt = Date.now();
+          await entry.transport.handleRequest(req, res, parsedBody);
+          return true;
+        }
+        // Unknown session, or a session opened under another identity: one
+        // answer for both, so the probe does not learn whether the id exists
+        // (#232). A POST `initialize` carrying a stale id still opens a new
+        // session, as it always did.
+        if (req.method === "POST" && isInitializeRequest(parsedBody)) return false;
+        if (entry) {
+          reqLogger.warn({ sessionId }, "Session ownership mismatch; answering as unknown session");
+        }
+        reject(404, "Session not found", -32001);
+        return true;
+      };
+
+      // Refuses a request that cannot open a session: not a POST, not an
+      // `initialize`, or the session ceiling reached. Returns true when it
+      // has answered.
+      const rejectNewSession = async (parsedBody: unknown): Promise<boolean> => {
+        if (req.method !== "POST" || !isInitializeRequest(parsedBody)) {
+          reject(
+            400,
+            req.method === "POST" ? "First request must be an MCP initialize message" : "Missing or invalid session ID"
+          );
+          return true;
+        }
+        // Cap concurrent sessions. Try a sweep first in case the ceiling is
+        // hit purely by idle-but-not-yet-reaped sessions, then reject.
+        if (sessions.size >= maxSessions) await sweepIdleSessions();
+        if (sessions.size < maxSessions) return false;
+        reqLogger.warn({ sessionCount: sessions.size, maxSessions }, "Session limit reached; rejecting new initialize");
+        reject(503, "Server session limit reached; retry later");
+        return true;
+      };
+
+      const openSession = async (identity: string, body: unknown): Promise<void> => {
+        const transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => randomUUID(),
+          enableJsonResponse: options.enableJsonResponse,
+          onsessioninitialized: (id) => {
+            sessions.set(id, { transport, server, lastActivityAt: Date.now(), ownerIdentity: identity });
+            reqLogger.info({ sessionId: id, sessionCount: sessions.size }, "MCP session initialized");
+          },
+          onsessionclosed: (id) => {
+            if (forgetSession(id)) {
+              reqLogger.info({ sessionId: id, sessionCount: sessions.size }, "MCP session closed");
+            }
+          },
+        });
+        transport.onclose = () => {
+          forgetSession(transport.sessionId);
+        };
+
+        const server = createServerFactory();
+        await server.connect(transport);
+        await transport.handleRequest(req, res, body);
+      };
+
+      // Stateful mode: route by Mcp-Session-Id header.
+      const serveStateful = async (parsedBody: unknown): Promise<void> => {
+        const sessionIdHeader = req.headers["mcp-session-id"];
+        const sessionId = Array.isArray(sessionIdHeader) ? sessionIdHeader[0] : sessionIdHeader;
+        const identity = currentAuthIdentity();
+        if (sessionId && (await routeExistingSession(sessionId, identity, parsedBody))) return;
+        if (await rejectNewSession(parsedBody)) return;
+        await openSession(identity, parsedBody);
+      };
+
       const dispatchMcpRequest = async (): Promise<void> => {
         if (options.stateless && req.method !== "POST") {
           reject(405, "Only POST is supported in stateless mode");
@@ -904,105 +996,10 @@ export async function startHttpTransport(
         }
 
         if (options.stateless) {
-          // No `sessionIdGenerator` = stateless mode (the SDK documents the
-          // key as `undefined`; omitting it is the same and type-checks under
-          // exactOptionalPropertyTypes).
-          const transport = new StreamableHTTPServerTransport({
-            enableJsonResponse: options.enableJsonResponse,
-          });
-          const server = createServerFactory();
-          res.on("close", () => {
-            void transport.close();
-            void server.close();
-          });
-          await server.connect(asTransport(transport));
-          await transport.handleRequest(req, res, parsedBody);
+          await serveStateless(parsedBody);
           return;
         }
-
-        // Stateful mode: route by Mcp-Session-Id header
-        const sessionIdHeader = req.headers["mcp-session-id"];
-        const sessionId = Array.isArray(sessionIdHeader) ? sessionIdHeader[0] : sessionIdHeader;
-        const identity = currentAuthIdentity();
-
-        if (sessionId) {
-          const entry = sessions.get(sessionId);
-          if (entry && entry.ownerIdentity === identity) {
-            entry.lastActivityAt = Date.now();
-            await entry.transport.handleRequest(req, res, parsedBody);
-            return;
-          }
-          // Unknown session, or a session opened under another identity: one
-          // answer for both, so the probe does not learn whether the id exists
-          // (#232). A POST `initialize` carrying a stale id still opens a new
-          // session below, as it always did.
-          if (!(req.method === "POST" && isInitializeRequest(parsedBody))) {
-            if (entry) {
-              reqLogger.warn({ sessionId }, "Session ownership mismatch; answering as unknown session");
-            }
-            reject(404, "Session not found", -32001);
-            return;
-          }
-        }
-
-        if (req.method !== "POST") {
-          reject(400, "Missing or invalid session ID");
-          return;
-        }
-
-        // First request of a session must be `initialize`
-        const body = parsedBody;
-        if (!isInitializeRequest(body)) {
-          reject(400, "First request must be an MCP initialize message");
-          return;
-        }
-
-        // Cap concurrent sessions. Try a sweep first in case the ceiling is
-        // hit purely by idle-but-not-yet-reaped sessions, then reject.
-        if (sessions.size >= maxSessions) {
-          await sweepIdleSessions();
-          if (sessions.size >= maxSessions) {
-            reqLogger.warn(
-              { sessionCount: sessions.size, maxSessions },
-              "Session limit reached; rejecting new initialize"
-            );
-            reject(503, "Server session limit reached; retry later");
-            return;
-          }
-        }
-
-        const transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: () => randomUUID(),
-          enableJsonResponse: options.enableJsonResponse,
-          onsessioninitialized: (id) => {
-            sessions.set(id, { transport, server, lastActivityAt: Date.now(), ownerIdentity: identity });
-            reqLogger.info({ sessionId: id, sessionCount: sessions.size }, "MCP session initialized");
-          },
-          onsessionclosed: (id) => {
-            const entry = sessions.get(id);
-            if (entry) {
-              sessions.delete(id);
-              void destroySession(entry);
-              reqLogger.info({ sessionId: id, sessionCount: sessions.size }, "MCP session closed");
-            }
-          },
-        });
-        transport.onclose = () => {
-          const id = transport.sessionId;
-          if (!id) return;
-          const entry = sessions.get(id);
-          if (entry) {
-            sessions.delete(id);
-            // Idempotent: if the sweep / onsessionclosed already started the
-            // teardown, this shares the same memoised promise rather than
-            // re-closing.
-            void destroySession(entry);
-          }
-        };
-
-        const server = createServerFactory();
-        await server.connect(asTransport(transport));
-        await transport.handleRequest(req, res, body);
+        await serveStateful(parsedBody);
       };
 
       if (options.staticAuth) {
