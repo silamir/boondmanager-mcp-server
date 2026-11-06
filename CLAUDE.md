@@ -1935,10 +1935,8 @@ Two traps this configuration must keep clear of, both of which produce the
   set to `undefined` (`...(x !== undefined ? { x } : {})`, or
   `optional(key, value)` in `transports/http.ts`); the Zod-inferred search
   params carry `| undefined` on every optional key, so `SearchParams` declares
-  it too. One deliberate cast remains: `asTransport()` in `transports/http.ts`,
-  because SDK 1.30 types `Transport.onclose` and the
-  `StreamableHTTPServerTransport` accessor differently — delete it when the SDK
-  aligns them.
+  it too. The `asTransport()` cast in `transports/http.ts` is gone since SDK
+  1.32.2, which declares `Transport`'s optional members with `| undefined`.
 - `@typescript-eslint/no-unused-vars` with `argsIgnorePattern: "^_"`
 - `@typescript-eslint/no-explicit-any` as warning
 - No semicolons preference not enforced (current code uses semicolons)

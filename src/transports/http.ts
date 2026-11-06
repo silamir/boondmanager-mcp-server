@@ -1,7 +1,6 @@
 import { createServer, IncomingMessage, ServerResponse, type Server } from "node:http";
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { logger, generateCorrelationId } from "../services/logger.js";
@@ -354,17 +353,6 @@ function extractHostname(hostHeader: string | string[] | undefined): string | un
 /** `{ [key]: value }` when the value is defined, `{}` otherwise — keeps optional keys absent rather than `undefined`. */
 function optional<K extends string, V>(key: K, value: V | undefined): { [P in K]?: V } {
   return value === undefined ? {} : ({ [key]: value } as { [P in K]?: V });
-}
-
-/**
- * SDK 1.30 declares `Transport.onclose` as `onclose?: () => void` but the
- * `StreamableHTTPServerTransport` accessor as `(() => void) | undefined`. The
- * SDK assigns one to the other internally; under `exactOptionalPropertyTypes`
- * the two are incompatible at *our* call sites only. Delete this adapter when
- * the SDK aligns the two declarations.
- */
-function asTransport(transport: StreamableHTTPServerTransport): Transport {
-  return transport as unknown as Transport;
 }
 
 export function resolveHttpOptions(): HttpTransportOptions {
@@ -915,7 +903,7 @@ export async function startHttpTransport(
             void transport.close();
             void server.close();
           });
-          await server.connect(asTransport(transport));
+          await server.connect(transport);
           await transport.handleRequest(req, res, parsedBody);
           return;
         }
@@ -1001,7 +989,7 @@ export async function startHttpTransport(
         };
 
         const server = createServerFactory();
-        await server.connect(asTransport(transport));
+        await server.connect(transport);
         await transport.handleRequest(req, res, body);
       };
 
