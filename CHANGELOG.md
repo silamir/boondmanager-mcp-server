@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.19.3] - 2026-11-14
+
+Version de maintenance : correctifs de sécurité transitifs (`hono`, `@hono/node-server`) et mises à jour de dépendances, dont `@modelcontextprotocol/sdk` 1.32.1 → 1.32.2 (révision de protocole négociée inchangée : `2025-11-25`) et `unpdf` 1.9.0 → 2.1.0. Aucun nom d'outil ne change. Catalogue : 238 outils.
+
+### Security
+
+- `hono` 4.13.13 → 4.13.18 (GHSA-4h7h-rv7c-7m2v, GHSA-h7mg-cq63-vhpq, GHSA-4m76-xfj5-7975, GHSA-46wx-v44x-9hh2 — sévérité modérée — et GHSA-3gg2-335m-rxc6 — faible) et `@hono/node-server` 2.0.12 → 2.1.6 (GHSA-rmxm-3fg6-px4f, modérée). Dépendances transitives du SDK MCP, qui n'utilise que `getRequestListener` de `@hono/node-server` : les fonctionnalités visées (`validator`, `RegExpRouter`, `css`, `mount`, `csrf`, `serveStatic`) ne sont pas employées par le serveur, la mise à jour solde les alertes des scanners.
+- `minimatch` forcé en `^11.0.1` par un `overrides` npm (GHSA-g3hv-75wg-m249, déni de service par amplification de motifs). Dépendance de développement uniquement (ESLint) : rien n'est livré dans le paquet npm, le bundle `.mcpb` ni l'image Docker.
+
+### Changed
+
+- Dépendances : `@modelcontextprotocol/sdk` 1.32.1 → 1.32.2 (`LATEST_PROTOCOL_VERSION` toujours `2025-11-25` ; ses types `Transport` étant désormais alignés, l'adaptateur `asTransport()` de `transports/http.ts` est supprimé), `unpdf` 1.9.0 → 2.1.0, image de base Docker `node:24-alpine` rafraîchie, et les groupes de dépendances de développement (`eslint` 10.14.0, `typescript-eslint` 8.72.1, `vitest` 5.1.0) et de GitHub Actions.
+- `unpdf` 2 déclare `node >= 24` alors que le serveur reste supporté à partir de Node 22 : l'installation sous Node 22 affiche un avertissement `EBADENGINE`, sans effet bloquant. L'extraction de texte des PDF est testée sous Node 22 en CI (le build `legacy` de pdf.js embarqué polyfille les API récentes qu'il utilise) ; un PDF dont l'extraction échouerait retombe, comme avant, sur la ressource brute avec un avertissement. L'image Docker tourne sous Node 24.
+- CI : contrôles exigés par la règle de protection de `main` (Conventional Commits sur les commits et le titre de PR, Gitleaks, pre-commit, yamllint).
+- README : table des matières.
+
 ## [2.19.2] - 2026-10-25
 
 Version de maintenance : mises à jour de dépendances, dont `@modelcontextprotocol/sdk` 1.31.0 → 1.32.1 (révision de protocole négociée inchangée : `2025-11-25`), et correctifs de sécurité transitifs. Aucun nom d'outil ne change. Catalogue : 238 outils.
