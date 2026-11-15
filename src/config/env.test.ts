@@ -10,7 +10,7 @@ import { resolveLogLevel, usePrettyOutput } from "../services/logger.js";
 /**
  * Every documented variable, so the "blank means unset" rule is asserted for
  * all of them at once rather than for whichever reader happened to get a test
- * (issue #242). Add a variable here when it is added to CLAUDE.md.
+ * (issue #242). Add a variable here when it is documented (.claude/rules/transports-auth.md and siblings).
  */
 const DOCUMENTED_VARS = [
   // stdio / credentials

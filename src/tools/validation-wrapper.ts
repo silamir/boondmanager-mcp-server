@@ -87,7 +87,7 @@ interface ToolConfigLike {
  *
  * Keyed on the *registration* rather than the name only. `openWorldHint: true`
  * is exactly the annotation the codebase reserves for paginated,
- * keyword-filtered listing tools (see CLAUDE.md §MCP Annotations), so it catches
+ * keyword-filtered listing tools (see .claude/rules/tools-factory.md, MCP Annotations), so it catches
  * `boond_reporting_{companies,projects,resources,synthesis,production_plans}` —
  * strict schemas carrying the same treacherous `perimeter*` / `*States`
  * vocabulary, which a `_search` suffix test silently skipped — and any future

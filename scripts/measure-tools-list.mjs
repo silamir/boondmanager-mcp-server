@@ -94,7 +94,7 @@ function renderMarkdown(head, base) {
     lines.push(
       "",
       `**Δ ${sign}${kib(delta)} KiB** (${sign}${delta} bytes, ${sign}${head.tools - base.tools} tools)${
-        delta > 0 ? " — every byte is paid on every `tools/list`; see CLAUDE.md § *Tool Description Contract*." : ""
+        delta > 0 ? " — every byte is paid on every `tools/list`; see .claude/rules/tool-descriptions.md." : ""
       }`,
     );
   }

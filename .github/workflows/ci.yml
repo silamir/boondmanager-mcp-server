@@ -122,7 +122,7 @@ jobs:
             fi
           done
           if [ "$FAILED" -ne 0 ]; then
-            echo "Bump every version copy together — see CLAUDE.md §Releasing step 2."
+            echo "Bump every version copy together — see the release skill, .claude/skills/release/SKILL.md step 4."
             exit 1
           fi
 

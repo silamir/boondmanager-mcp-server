@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Configuration Claude Code du dépôt alignée sur les bonnes pratiques officielles (https://code.claude.com/docs/fr/best-practices). `CLAUDE.md` passe de 1958 à ~110 lignes : il ne garde que les commandes, la définition de « terminé » et les pièges transverses ; les notes de conception sont déplacées telles quelles dans `.claude/rules/*.md`, chargées seulement quand on touche les fichiers concernés (`paths:`), et l'arborescence annotée dans `docs/architecture.md`. Ajouts : skills `/release` (procédure à jour avec les rulesets de `main`) et `add-tool`, sous-agent `reviewer` en lecture seule, `.claude/settings.json` (lecture de `.env` refusée, hook bloquant `git add -A` et l'édition des fichiers générés, Prettier après chaque édition de `src/`, hook `Stop` qui exige un `tsc` vert quand `src/` a changé), `.worktreeinclude` et `CLAUDE.local.md` ignoré par git. Aucun changement du serveur.
+
 ## [2.19.3] - 2026-11-14
 
 Version de maintenance : correctifs de sécurité transitifs (`hono`, `@hono/node-server`) et mises à jour de dépendances, dont `@modelcontextprotocol/sdk` 1.32.1 → 1.32.2 (révision de protocole négociée inchangée : `2025-11-25`) et `unpdf` 1.9.0 → 2.1.0. Aucun nom d'outil ne change. Catalogue : 238 outils.

@@ -37,7 +37,7 @@ jobs:
         id: gate
         run: |
           if [ -z "$BOOND_USER_TOKEN" ] || [ -z "$BOOND_CLIENT_TOKEN" ] || [ -z "$BOOND_CLIENT_KEY" ]; then
-            echo "BOOND_SANDBOX_* secrets are not configured — skipping (see CLAUDE.md § CI/CD)." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "BOOND_SANDBOX_* secrets are not configured — skipping (see .claude/rules/packaging-ci.md)." | tee -a "$GITHUB_STEP_SUMMARY"
             echo "configured=false" >> "$GITHUB_OUTPUT"
           else
             echo "configured=true" >> "$GITHUB_OUTPUT"

@@ -18,7 +18,7 @@ interface ReportingEndpoint {
   title: string;
   description: string;
   entity: string;
-  // Full strict ZodObject (preserves rejection of unknown filter names — see CLAUDE.md).
+  // Full strict ZodObject (preserves rejection of unknown filter names — see .claude/rules/search-filters.md).
   schema: ZodType;
   /** When true, the API rejects requests without `startDate` + `endDate` (422). */
   datesRequired: boolean;
