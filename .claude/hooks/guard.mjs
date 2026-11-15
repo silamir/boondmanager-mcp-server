@@ -17,6 +17,10 @@ try {
 const tool = input.tool_name;
 const args = input.tool_input ?? {};
 
+// `git add` arguments that stage the whole tree, untracked files included.
+const WHOLE_TREE = new Set(["-A", "--all", ".", ":/"]);
+const stagesEverything = (word) => WHOLE_TREE.has(word) || /^-[a-zA-Z]*A/.test(word);
+
 function block(reason) {
   process.stderr.write(reason + "\n");
   process.exit(2);
@@ -28,8 +32,7 @@ if (tool === "Bash" && typeof args.command === "string") {
     const words = part.trim().split(/\s+/);
     const i = words.indexOf("add");
     if (words[0] !== "git" || i < 1) continue;
-    const rest = words.slice(i + 1);
-    if (rest.some((w) => w === "-A" || w === "--all" || w === "." || w === ":/" || /^-[a-zA-Z]*A/.test(w))) {
+    if (words.slice(i + 1).some(stagesEverything)) {
       block(
         "Blocked: stage by explicit path in this repository (e.g. `git add src CHANGELOG.md TOOLS.md`). " +
           "`git add -A` / `git add .` once committed untracked CRM data. Check `git status --short` first."
