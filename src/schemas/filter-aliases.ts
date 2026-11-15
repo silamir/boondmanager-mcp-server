@@ -7,7 +7,7 @@ import type { DomainName } from "../constants.js";
  * self-correct, not as opaque protocol errors).
  *
  * Why this exists: the six main search endpoints take filter names that must
- * match the BoondManager API query parameters verbatim (see CLAUDE.md
+ * match the BoondManager API query parameters verbatim (see .claude/rules/search-filters.md
  * §*Search Filter Naming*). The schemas are `.strict()`, so a wrong name is
  * rejected rather than silently ignored — but "Unrecognized key:
  * \"mainManagers\"" tells the model *that* it was wrong, never *what to use

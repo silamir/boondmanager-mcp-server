@@ -1131,7 +1131,7 @@ export const TimesheetSearchSchema = z
 // the `plannedTimes` of `/times-reports/default`): `startDate`, `duration`,
 // `workUnitType.reference`, `project`, `delivery`, `batch`. `state` is moved by
 // the validation workflow (`validated`, `waitingForValidation`…) and is not a
-// write field. See CLAUDE.md → *Timesheets* for what was and was not verified
+// write field. See .claude/rules/expenses-timesheets.md → *Timesheets* for what was and was not verified
 // against the live API.
 export const TimesheetLineSchema = z
   .object({
@@ -1466,7 +1466,7 @@ export const DeliveryCreateSchema = z
   .strict();
 
 // PUT /deliveries/{id} — attributes only, the project / resource attachment
-// is not moved by an update (issue #252; write path not exercised, see CLAUDE.md).
+// is not moved by an update (issue #252; write path not exercised, see .claude/rules/domain-writes.md).
 export const DeliveryUpdateSchema = z
   .object({
     id: EntityIdSchema.describe("ID de la prestation à modifier"),
@@ -1589,7 +1589,7 @@ export const ContractSearchSchema = z
 // `PUT /validations/{id}` with the workflow state the RAML enumerates on
 // `validationStates` (`validated` | `rejected`). No RAML documents the write;
 // the route follows the pattern of every other single-entity PUT and has NOT
-// been exercised (production tenant) — see CLAUDE.md → *Validations*.
+// been exercised (production tenant) — see .claude/rules/domain-writes.md → *Validations*.
 export const ValidationDecisionSchema = z
   .object({
     id: EntityIdSchema.describe(
@@ -1894,7 +1894,7 @@ export const PaymentCreateSchema = z
   })
   .strict();
 
-// PUT /payments/{id} — issue #252 (write path not exercised, see CLAUDE.md).
+// PUT /payments/{id} — issue #252 (write path not exercised, see .claude/rules/domain-writes.md).
 export const PaymentUpdateSchema = z
   .object({
     id: EntityIdSchema.describe("ID du paiement à modifier"),
@@ -1996,7 +1996,7 @@ export const ProviderInvoiceCreateSchema = z
   })
   .strict();
 
-// PUT /provider-invoices/{id} — issue #252 (write path not exercised, see CLAUDE.md).
+// PUT /provider-invoices/{id} — issue #252 (write path not exercised, see .claude/rules/domain-writes.md).
 export const ProviderInvoiceUpdateSchema = z
   .object({
     id: EntityIdSchema.describe("ID de la facture fournisseur à modifier"),
@@ -2033,7 +2033,7 @@ export const ContractCreateSchema = z
   })
   .strict();
 
-// PUT /contracts/{id} — issue #252 (write path not exercised, see CLAUDE.md).
+// PUT /contracts/{id} — issue #252 (write path not exercised, see .claude/rules/domain-writes.md).
 export const ContractUpdateSchema = z
   .object({
     id: EntityIdSchema.describe("ID du contrat à modifier"),
