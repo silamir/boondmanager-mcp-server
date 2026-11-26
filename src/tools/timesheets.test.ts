@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { registerTimesheetTools, timesheetSummary, buildTimeLine, formatTimesheetDefaults } from "./timesheets.js";
+import {
+  registerTimesheetTools,
+  timesheetSummary,
+  buildTimeLine,
+  buildTimesheetBody,
+  formatTimesheetDefaults,
+} from "./timesheets.js";
 import { toolCallback } from "./test-helpers.js";
 import { apiRequest, apiSearch } from "../services/boond-client.js";
 import { CHARACTER_LIMIT } from "../constants.js";
@@ -312,6 +318,7 @@ describe("registerTimesheetTools", () => {
                 project: { id: "2947" },
                 delivery: { id: "18360" },
                 batch: null,
+                row: 1,
               },
             ],
           },
@@ -335,5 +342,21 @@ describe("registerTimesheetTools", () => {
         data: { id: "99", type: "timesreport", attributes: { informationComments: "corrigé", closed: true } },
       });
     });
+  });
+});
+
+describe("buildTimesheetBody rows", () => {
+  it("numbers one row per (type, project, delivery, batch) — the API drops lines without row", () => {
+    const body = buildTimesheetBody({
+      resourceId: "130",
+      term: "2026-11",
+      regularTimes: [
+        { startDate: "2026-11-03", duration: 1, workUnitTypeReference: 1, projectId: "82", deliveryId: "349" },
+        { startDate: "2026-11-02", duration: 1, workUnitTypeReference: 15 },
+        { startDate: "2026-11-04", duration: 1, workUnitTypeReference: 1, projectId: "82", deliveryId: "349" },
+        { startDate: "2026-11-05", duration: 1, workUnitTypeReference: 15 },
+      ],
+    }) as { data: { attributes: { regularTimes: { row: number }[] } } };
+    expect(body.data.attributes.regularTimes.map((l) => l.row)).toEqual([1, 2, 1, 2]);
   });
 });
