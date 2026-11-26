@@ -5,6 +5,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **`boond_provider_invoices_update` rattache ou détache le fournisseur** : nouveau champ `provider: { companyId, contactId }` envoyé en `relationships.providerCompany` / `providerContact` (la doc de l'API, `providerInvoices/bodyPut.json`, exige les deux ensemble), et `provider: null` pour retirer les deux. Écriture non vérifiée sur un environnement de test. La ressource, elle, ne peut toujours pas être changée : la doc ne prévoit pas de relation `resource` sur `PUT /provider-invoices/{id}`, seulement à la création ; la description de l'outil le dit.
+- **Le résumé de `boond_provider_invoices_search` affiche le numéro de TVA du fournisseur** (`vatNumber`, présent dans les lignes de liste), pour identifier une facture électronique arrivée sans ressource. La société fournisseur n'est pas affichée : aucune des 60 lignes de liste lues sur une instance réelle (26/11/2026) ne portait la relation `providerCompany`.
+
 ### Fixed
 
 - **`boond_documents_create` : `parentType` avec la bonne casse.** Sur une instance réelle, l'API a refusé `providerInvoice` (422) et accepté `providerinvoice`, la graphie de sa doc, alors que la doc écrit la plupart des noms composés en camelCase et trois tout en minuscules (`providerinvoice`, `followeddocument`, `appentity`). Un type documenté reçu avec une autre casse est ramené à sa graphie exacte avant l'envoi (une erreur de casse ne coûte plus un slot du relais) et la réponse le signale ; un type inconnu reste transmis tel quel. Le champ `parentType` liste désormais tous les types documentés avec ce qu'ils désignent (facture fournisseur, prestation, achat…), et un 422 de Boond sur `parentType` renvoie cette liste au lieu du seul message de l'API. Seul `providerinvoice` a été exercé (27/11/2026) ; pour les autres types, la graphie vient de la doc RAML. Un 422 sur `parentType` avec un type documenté renvoie d'abord à `parentId`, en rappelant que seule cette graphie-là a été exercée.

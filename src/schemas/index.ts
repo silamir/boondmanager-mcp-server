@@ -2064,6 +2064,18 @@ export const ProviderInvoiceUpdateSchema = z
       "providerinvoice",
       "État de la facture fournisseur : ID de `boond://dictionary/states/provider-invoices`"
     ),
+    // RAML providerInvoices/bodyPut.json: providerCompany / providerContact, each
+    // nullable, and "if defined then provider's contact / company have to be set":
+    // one object holding both, or null to clear both. The documented PUT has no `resource`.
+    provider: z
+      .object({
+        companyId: EntityIdSchema.describe("ID de la société fournisseur (providerCompany)"),
+        contactId: EntityIdSchema.describe("ID du contact fournisseur (providerContact)"),
+      })
+      .strict()
+      .nullable()
+      .optional()
+      .describe("Fournisseur : société et contact ensemble (exigé par l'API), ou `null` pour retirer les deux"),
   })
   .strict();
 

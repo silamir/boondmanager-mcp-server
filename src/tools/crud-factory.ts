@@ -525,7 +525,7 @@ export function buildJsonApiBody(
   type: string,
   attributes: Record<string, unknown>,
   id?: string,
-  relationships?: Record<string, { id: string; type: string } | undefined>
+  relationships?: Record<string, { id: string; type: string } | null | undefined>
 ): unknown {
   const data: Record<string, unknown> = {
     type,

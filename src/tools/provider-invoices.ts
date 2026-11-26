@@ -32,6 +32,27 @@ export function buildProviderInvoiceBody(params: Record<string, unknown>): unkno
   });
 }
 
+/**
+ * `PUT /provider-invoices/{id}` payload. `provider` sets `providerCompany` and
+ * `providerContact` together (the RAML requires both once one is set) or, as
+ * `null`, clears both. The documented PUT has no `resource` relationship.
+ */
+export function buildProviderInvoiceUpdateBody(params: Record<string, unknown>): unknown {
+  const { id, provider, ...attrs } = params;
+  const p = provider as { companyId: string; contactId: string } | null | undefined;
+  return buildJsonApiBody(
+    "providerinvoice",
+    attrs,
+    String(id),
+    p === undefined
+      ? undefined
+      : {
+          providerCompany: p === null ? null : { id: String(p.companyId), type: "company" },
+          providerContact: p === null ? null : { id: String(p.contactId), type: "contact" },
+        }
+  );
+}
+
 const SOURCE_LABELS: Readonly<Record<number, string>> = { 0: "manuelle", 1: "électronique" };
 
 /**
@@ -59,6 +80,7 @@ export function providerInvoiceSummary(item: JsonApiResource): string {
     amounts,
     a["state"] !== undefined && a["state"] !== null ? `Statut: ${String(a["state"])}` : undefined,
     source ? `Source: ${source}` : undefined,
+    a["vatNumber"] ? `TVA: ${String(a["vatNumber"])}` : undefined,
     resourceLabel,
   ];
   return parts.filter((p): p is string => p !== undefined).join(" | ");
@@ -88,22 +110,29 @@ export function registerProviderInvoiceTools(server: McpServer): void {
       when: "pour suivre les factures d'achat, par fournisseur, état, origine (saisie manuelle / facture électronique reçue) ou période ; `withoutResource: true` + `sources: [1]` = factures électroniques arrivées sans ressource, à traiter.",
       instead:
         "`boond_invoices_search` pour les factures de vente adressées aux clients — sens opposé, endpoint distinct.",
-      returns: "page de résumés de factures fournisseur (référence, date, montants). Lecture seule.",
+      returns:
+        "page de résumés de factures fournisseur (référence, date, montants, état, origine, n° de TVA du fournisseur, ressource ou « Sans ressource »). Lecture seule.",
     }),
   });
 
   registerGetTool(server, OPTS, { withTab: false, title: "Détails d'une facture fournisseur" });
 
   // Issue #252: mark a provider invoice paid (paidDate / state), fix a period or an amount.
-  registerUpdateTool(
-    server,
-    OPTS,
-    ProviderInvoiceUpdateSchema,
-    (params) => {
-      const { id, ...attrs } = params;
-      return buildJsonApiBody("providerinvoice", attrs, String(id));
-    },
-    { method: "PUT", title: "Modifier une facture fournisseur" }
-  );
+  registerUpdateTool(server, OPTS, ProviderInvoiceUpdateSchema, buildProviderInvoiceUpdateBody, {
+    method: "PUT",
+    title: "Modifier une facture fournisseur",
+    description: composeDescription({
+      purpose:
+        "Modifie une facture fournisseur : dates, montants, état, ou la société et le contact fournisseur (`provider`).",
+      when: "pour marquer une facture payée (`paidDate`, `state`), corriger une période ou un montant, ou rattacher / détacher le fournisseur.",
+      instead: "`boond_provider_invoices_create` pour enregistrer une nouvelle facture.",
+      behaviour: [
+        "`PUT /provider-invoices/{id}` : écriture non vérifiée sur un environnement de test.",
+        "`provider` envoie `providerCompany` et `providerContact` ensemble (la doc de l'API les exige ensemble) ; `provider: null` retire les deux.",
+        "La ressource d'une facture ne peut pas être changée ici : la doc de l'API ne prévoit pas de relation `resource` sur la modification, seulement à la création.",
+      ],
+      returns: "confirmation et fiche de la facture fournisseur modifiée.",
+    }),
+  });
   registerDeleteTool(server, OPTS, { title: "Supprimer une facture fournisseur" });
 }

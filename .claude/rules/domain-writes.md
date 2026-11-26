@@ -156,13 +156,28 @@ invoices have **no** `information.raml` on the doc site (404, checked
 2026-09-26), so they PUT the base resource — the pattern `/actions/{id}` and
 `/times-reports/{id}` follow. **None of these five write paths has been
 exercised** (production tenant): the schemas are attribute-only
-(`models.<entity>` in the dictionary), never move a relationship, and their
+(`models.<entity>` in the dictionary), never move a relationship (except the
+provider-invoice `provider`, below), and their
 `state` is `stateField` (rows in `state-writability.test.ts`). The first
 write against a test tenant should confirm the verb (a 405 means
 `/information` is expected) and fix this paragraph. `note` maps to
 `informationComments` on contracts and purchases — `models.contract` /
 `models.purchase` have no `note`, so the create tools were sending an
 attribute the API ignored.
+
+**Provider invoices: supplier and resource.** The RAML's
+`providerInvoices/bodyPut.json` documents `providerCompany` and
+`providerContact` on `PUT /provider-invoices/{id}`, each nullable, each
+"have to be set" once the other is — hence the update schema's single
+`provider: { companyId, contactId } | null`. It documents **no `resource`**
+(only `bodyPost.json` and the read `profile.json` carry it), so the resource of
+an invoice (an e-invoice received without one) cannot be set through the
+public API as documented; the update description says so. Not exercised: the
+`provider` write, and whether an undocumented `relationships.resource` on PUT
+is applied or silently ignored — try both on a sandbox, then fix this
+paragraph. List rows (60 read live, 2026-11-26) carry `vatNumber` and, when
+set, `resource`; none carried `providerCompany`, which is why the search
+summary shows the VAT number and not the supplier's name.
 
 **Order correlations (`deliveriesPurchases`)**: the deliveries and purchases
 ticked in the UI's "Prestations / Achats corrélés" block. `GET /orders/{id}`

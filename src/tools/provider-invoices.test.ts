@@ -220,3 +220,60 @@ describe("providerInvoiceSummary resource label", () => {
     ).toBe("[providerinvoice #2] | ? HT / 120 TTC");
   });
 });
+
+describe("boond_provider_invoices_update provider relationships (RAML providerInvoices/bodyPut.json)", () => {
+  it("sends providerCompany and providerContact together", async () => {
+    const { buildProviderInvoiceUpdateBody } = await import("./provider-invoices.js");
+    expect(buildProviderInvoiceUpdateBody({ id: "12", provider: { companyId: "7", contactId: "8" } })).toEqual({
+      data: {
+        type: "providerinvoice",
+        id: "12",
+        attributes: {},
+        relationships: {
+          providerCompany: { data: { id: "7", type: "company" } },
+          providerContact: { data: { id: "8", type: "contact" } },
+        },
+      },
+    });
+  });
+
+  it("clears both with provider: null", async () => {
+    const { buildProviderInvoiceUpdateBody } = await import("./provider-invoices.js");
+    expect(buildProviderInvoiceUpdateBody({ id: "12", provider: null })).toEqual({
+      data: {
+        type: "providerinvoice",
+        id: "12",
+        attributes: {},
+        relationships: { providerCompany: { data: null }, providerContact: { data: null } },
+      },
+    });
+  });
+
+  it("sends no relationships block without provider", async () => {
+    const { buildProviderInvoiceUpdateBody } = await import("./provider-invoices.js");
+    expect(buildProviderInvoiceUpdateBody({ id: "12", reference: "F-1" })).toEqual({
+      data: { type: "providerinvoice", id: "12", attributes: { reference: "F-1" } },
+    });
+  });
+
+  it("rejects a company without its contact, and exposes no resource", async () => {
+    const { ProviderInvoiceUpdateSchema } = await import("../schemas/index.js");
+    expect(ProviderInvoiceUpdateSchema.safeParse({ id: "12", provider: { companyId: "7" } }).success).toBe(false);
+    expect(ProviderInvoiceUpdateSchema.safeParse({ id: "12", resourceId: "9" }).success).toBe(false);
+    expect(ProviderInvoiceUpdateSchema.safeParse({ id: "12", provider: null }).success).toBe(true);
+  });
+});
+
+describe("providerInvoiceSummary VAT number", () => {
+  it("shows the supplier's VAT number carried by list rows", async () => {
+    const { providerInvoiceSummary } = await import("./provider-invoices.js");
+    expect(
+      providerInvoiceSummary({
+        id: "145",
+        type: "providerinvoice",
+        attributes: { reference: "F-9", source: 1, vatNumber: "FR00123456789" },
+        relationships: { agency: { data: { id: "1", type: "agency" } } },
+      } as never)
+    ).toBe("[providerinvoice #145] | Réf: F-9 | Source: électronique | TVA: FR00123456789 | Sans ressource");
+  });
+});
