@@ -235,6 +235,114 @@ describe("provider invoice search (filters verified live 2026-11-26)", () => {
   });
 });
 
+describe("provider invoice search, RAML-only filters (not exercised live)", () => {
+  it("forwards the amount, custom period and multi-id filters of the RAML search.raml", async () => {
+    const { apiSearch } = await import("../services/boond-client.js");
+    const { toolCallback } = await import("./test-helpers.js");
+    vi.mocked(apiSearch).mockResolvedValue({ data: [], meta: { totals: { rows: 0 } } } as never);
+    const server = createMockServer();
+    registerProviderInvoiceTools(server);
+    await toolCallback(
+      server,
+      "boond_provider_invoices_search"
+    )({
+      resources: [120, 131],
+      companies: [7],
+      withoutCompany: false,
+      amountType: "between",
+      amountColumn: "amountExcludingTax",
+      amountMin: 10000,
+      amountMax: 13000,
+      amountCurrency: 0,
+      period: "invoiceDate",
+      periodDynamic: "lastCustomPeriod",
+      periodDynamicParameters: "3,months",
+    });
+    expect(vi.mocked(apiSearch).mock.calls.at(-1)?.[1]).toMatchObject({
+      resources: [120, 131],
+      companies: [7],
+      amountType: "between",
+      amountColumn: "amountExcludingTax",
+      amountMin: 10000,
+      amountMax: 13000,
+      amountCurrency: 0,
+      withoutCompany: "false",
+      periodDynamic: "lastCustomPeriod",
+      periodDynamicParameters: "3,months",
+    });
+  });
+
+  it("validates the amount enums and the custom period format", async () => {
+    const { ProviderInvoiceSearchSchema } = await import("../schemas/index.js");
+    expect(ProviderInvoiceSearchSchema.safeParse({ amountType: "greater" }).success).toBe(false);
+    expect(ProviderInvoiceSearchSchema.safeParse({ amountColumn: "amount" }).success).toBe(false);
+    expect(ProviderInvoiceSearchSchema.safeParse({ periodDynamicParameters: "3 months" }).success).toBe(false);
+    expect(ProviderInvoiceSearchSchema.safeParse({ periodDynamicParameters: "101,days" }).success).toBe(false);
+    expect(ProviderInvoiceSearchSchema.safeParse({ periodDynamicParameters: "12,weeks" }).success).toBe(true);
+  });
+});
+
+describe("provider invoice shared write relationships (RAML bodyPost / bodyPut)", () => {
+  it("sends mainManager, agency, pole and billingDetail on create, and stateReason / payments as attributes", () => {
+    expect(
+      buildProviderInvoiceBody({
+        reference: "F-1",
+        resourceId: "9",
+        startDate: "2026-09-01",
+        endDate: "2026-09-30",
+        mainManagerId: "1",
+        agencyId: "2",
+        poleId: "3",
+        billingDetailId: "4",
+        stateReason: { typeOf: 1, detail: "x" },
+        payments: [{ deliveryId: "8", state: 1, amountExcludingTax: 10 }],
+      })
+    ).toEqual({
+      data: {
+        type: "providerinvoice",
+        attributes: {
+          reference: "F-1",
+          startDate: "2026-09-01",
+          endDate: "2026-09-30",
+          stateReason: { typeOf: 1, detail: "x" },
+          payments: [{ deliveryId: "8", state: 1, amountExcludingTax: 10 }],
+        },
+        relationships: {
+          resource: { data: { id: "9", type: "resource" } },
+          mainManager: { data: { id: "1", type: "resource" } },
+          agency: { data: { id: "2", type: "agency" } },
+          pole: { data: { id: "3", type: "pole" } },
+          billingDetail: { data: { id: "4", type: "billingdetail" } },
+        },
+      },
+    });
+  });
+
+  it("clears pole and billingDetail with null on update and PUTs through the handler", async () => {
+    const { toolCallback } = await import("./test-helpers.js");
+    vi.mocked(apiRequest).mockClear();
+    vi.mocked(apiRequest).mockResolvedValue({ data: { id: "12", type: "providerinvoice", attributes: {} } } as never);
+    const server = createMockServer();
+    registerProviderInvoiceTools(server);
+    await toolCallback(
+      server,
+      "boond_provider_invoices_update"
+    )({ id: "12", mainManagerId: "1", poleId: null, billingDetailId: null, currency: 0 });
+    expect(apiRequest).toHaveBeenLastCalledWith("/provider-invoices/12", "PUT", {
+      data: {
+        type: "providerinvoice",
+        id: "12",
+        attributes: { currency: 0 },
+        relationships: {
+          mainManager: { data: { id: "1", type: "resource" } },
+          pole: { data: null },
+          billingDetail: { data: null },
+        },
+      },
+    });
+  });
+});
+
 describe("providerInvoiceSummary", () => {
   it("shows reference, date, amounts, state, source and resource", async () => {
     const { providerInvoiceSummary } = await import("./provider-invoices.js");

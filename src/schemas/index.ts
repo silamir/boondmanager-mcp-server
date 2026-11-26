@@ -2013,21 +2013,76 @@ export const ProviderInvoiceSearchSchema = z
       .describe(
         "true = seulement les factures rattachées à aucune ressource (typiquement une facture électronique qui vient d'arriver)."
       ),
+    resources: entityIdArray(
+      "IDs de ressources (plusieurs à la fois, contrairement à `resourceId`). Ignoré si `withoutResource` est vrai."
+    ),
+    companies: entityIdArray("IDs de sociétés fournisseur (plusieurs à la fois)."),
+    withoutCompany: z.boolean().optional().describe("true = seulement les factures sans société fournisseur."),
     period: z
       .enum(["invoiceDate", "invoicePeriod"])
       .optional()
       .describe(
         "Champ de date borné par `startDate` / `endDate` : invoiceDate (date de facture), invoicePeriod (période facturée)."
       ),
-    periodDynamic: periodDynamicField,
+    periodDynamic: z
+      .enum([...periodDynamicField.unwrap().options, "lastCustomPeriod", "nextCustomPeriod"])
+      .optional()
+      .describe(
+        "Fenêtre relative appliquée à `period` : thisMonth, lastMonth, thisYear, untilToday…, ou lastCustomPeriod / nextCustomPeriod avec `periodDynamicParameters`."
+      ),
+    periodDynamicParameters: z
+      .string()
+      .regex(/^([1-9]\d?|100),(days|weeks|months|trimesters|semesters|years)$/)
+      .optional()
+      .describe(
+        "Durée et unité de la période personnalisée, ex. `3,months` (1 à 100 ; days, weeks, months, trimesters, semesters, years)."
+      ),
     startDate: startDateField,
     endDate: endDateField,
+    amountType: z
+      .enum(["equal", "between"])
+      .optional()
+      .describe("Filtre de montant : `equal` (avec `amount`) ou `between` (avec `amountMin` / `amountMax`)."),
+    amountColumn: z
+      .enum(["amountExcludingTax", "amountIncludingTax"])
+      .optional()
+      .describe("Montant filtré : HT (`amountExcludingTax`) ou TTC (`amountIncludingTax`)."),
+    amount: z.number().optional().describe("Montant exact (avec `amountType: equal`)."),
+    amountMin: z.number().optional().describe("Montant minimum inclus (avec `amountType: between`)."),
+    amountMax: z.number().optional().describe("Montant maximum inclus (avec `amountType: between`)."),
+    amountCurrency: z
+      .number()
+      .int()
+      .optional()
+      .describe("Devise du montant filtré : ID de `setting.currency` (`boond_application_dictionary`)."),
+    ...perimeterShape,
     ...sortedPaginationShape,
   })
   .strict();
 
+// RAML providerInvoices bodyPost.json / bodyPut.json, shared write fields.
+const providerInvoiceWriteShape = {
+  mainManagerId: EntityIdSchema.optional().describe(
+    "ID du responsable de la facture (ressource, relation `mainManager`)"
+  ),
+  agencyId: EntityIdSchema.optional().describe("ID de l'agence (`boond_agencies_search`)"),
+  poleId: EntityIdSchema.nullable().optional().describe("ID du pôle (`boond_poles_search`), ou `null` pour le retirer"),
+  billingDetailId: EntityIdSchema.nullable()
+    .optional()
+    .describe("ID des coordonnées de facturation du fournisseur, ou `null` pour les retirer"),
+  stateReason: z
+    .object({
+      typeOf: z.number().int().min(0).describe("Type de motif : ID du dictionnaire des motifs d'état"),
+      detail: z.string().optional().describe("Précision libre"),
+    })
+    .strict()
+    .optional()
+    .describe("Motif de l'état (ex. refus)"),
+};
+
 export const ProviderInvoiceCreateSchema = z
   .object({
+    ...providerInvoiceWriteShape,
     reference: z.string().min(1).describe("Référence de la facture fournisseur"),
     resourceId: EntityIdSchema.describe("ID de la ressource portée par la facture fournisseur"),
     companyId: EntityIdSchema.optional().describe(
@@ -2045,6 +2100,19 @@ export const ProviderInvoiceCreateSchema = z
     exchangeRate: z.number().optional().describe("Taux de change"),
     currencyAgency: z.number().optional().describe("Devise agence"),
     exchangeRateAgency: z.number().optional().describe("Taux de change agence"),
+    // RAML bodyPost.json `payments`: on create they hang on a delivery, not a purchase.
+    payments: z
+      .array(
+        z
+          .object({
+            deliveryId: EntityIdSchema.describe("ID de la prestation payée (`boond_deliveries_search`)"),
+            state: z.number().int().min(0).describe("État du paiement : ID de `setting.state.purchase`"),
+            amountExcludingTax: z.number().describe("Montant HT du paiement"),
+          })
+          .strict()
+      )
+      .optional()
+      .describe("Paiements créés avec la facture, rattachés à des prestations (doc de l'API)"),
     state: stateField(
       "providerinvoice",
       "État de la facture fournisseur : ID de `boond://dictionary/states/provider-invoices`"
@@ -2056,6 +2124,16 @@ export const ProviderInvoiceCreateSchema = z
 export const ProviderInvoiceUpdateSchema = z
   .object({
     id: EntityIdSchema.describe("ID de la facture fournisseur à modifier"),
+    ...providerInvoiceWriteShape,
+    creationDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{4}$/)
+      .optional()
+      .describe("Date de création, date et heure avec fuseau (ex. `2026-11-26T12:04:16+0100`)"),
+    currency: z.number().optional().describe("Devise Boond"),
+    exchangeRate: z.number().optional().describe("Taux de change"),
+    currencyAgency: z.number().optional().describe("Devise agence"),
+    exchangeRateAgency: z.number().optional().describe("Taux de change agence"),
     resourceId: EntityIdSchema.optional().describe(
       "ID de la ressource à rattacher (relation `resource`), ex. une facture électronique reçue sans ressource"
     ),

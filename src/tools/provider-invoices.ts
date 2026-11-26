@@ -22,12 +22,33 @@ const OPTS = {
   prefix: "boond_provider_invoices",
 };
 
+type RelationshipRef = { id: string; type: string } | null;
+
+/**
+ * Relationships shared by the create and update bodies (RAML bodyPost.json /
+ * bodyPut.json): `mainManager`, `agency`, and the nullable `pole` /
+ * `billingDetail` (`null` clears the link). Absent ids are not sent.
+ */
+function sharedRelationships(params: Record<string, unknown>): Record<string, RelationshipRef> {
+  const rels: Record<string, RelationshipRef> = {};
+  const set = (key: string, name: string, type: string): void => {
+    const value = params[key];
+    if (value === null) rels[name] = null;
+    else if (value !== undefined) rels[name] = { id: String(value), type };
+  };
+  set("mainManagerId", "mainManager", "resource");
+  set("agencyId", "agency", "agency");
+  set("poleId", "pole", "pole");
+  set("billingDetailId", "billingDetail", "billingdetail");
+  return rels;
+}
+
 /**
  * `/provider-invoices` payload: `resource` is mandatory, `providerCompany` /
  * `providerContact` optional but, per the RAML bodyPost.json, set together.
  */
 export function buildProviderInvoiceBody(params: Record<string, unknown>): unknown {
-  const { companyId, contactId, resourceId, ...attrs } = params;
+  const { companyId, contactId, resourceId, mainManagerId, agencyId, poleId, billingDetailId, ...attrs } = params;
   if (Boolean(companyId) !== Boolean(contactId)) {
     throw new Error(
       "`companyId` et `contactId` vont ensemble : l'API exige le contact fournisseur dès que la société est renseignée, et inversement."
@@ -37,6 +58,7 @@ export function buildProviderInvoiceBody(params: Record<string, unknown>): unkno
     resource: { id: String(resourceId), type: "resource" },
     providerCompany: companyId ? { id: String(companyId), type: "company" } : undefined,
     providerContact: contactId ? { id: String(contactId), type: "contact" } : undefined,
+    ...sharedRelationships({ mainManagerId, agencyId, poleId, billingDetailId }),
   });
 }
 
@@ -47,7 +69,7 @@ export function buildProviderInvoiceBody(params: Record<string, unknown>): unkno
  * `bodyPut.json`, but applied by the API (changed and restored live, 2026-11-26).
  */
 export function buildProviderInvoiceUpdateBody(params: Record<string, unknown>): unknown {
-  const { id, provider, resourceId, payments, ...attrs } = params;
+  const { id, provider, resourceId, payments, mainManagerId, agencyId, poleId, billingDetailId, ...attrs } = params;
   const p = provider as { companyId: string; contactId: string } | null | undefined;
   if (Array.isArray(payments)) {
     // RAML bodyPut.json: `purchase: { id }`, not a flat purchaseId.
@@ -58,6 +80,7 @@ export function buildProviderInvoiceUpdateBody(params: Record<string, unknown>):
   }
   const relationships = {
     ...(resourceId ? { resource: { id: String(resourceId), type: "resource" } } : {}),
+    ...sharedRelationships({ mainManagerId, agencyId, poleId, billingDetailId }),
     ...(p === undefined
       ? {}
       : {
@@ -116,6 +139,7 @@ export function registerProviderInvoiceTools(server: McpServer): void {
         "`boond_invoices_create` pour une facture de vente adressée à un client — les deux sens ne partagent pas d'endpoint.",
       behaviour: [
         "`resource`, `providerCompany` et `providerContact` sont attendus sous forme d'ID numériques ; `companyId` et `contactId` vont ensemble (exigé par l'API).",
+        "`mainManagerId`, `agencyId`, `poleId`, `billingDetailId`, `stateReason` et `payments` (par prestation) suivent la doc de l'API, non vérifiés.",
         "Écriture non idempotente.",
       ],
       returns: "confirmation et fiche de la facture fournisseur créée, avec son ID dans `structuredContent.id`.",
@@ -127,7 +151,7 @@ export function registerProviderInvoiceTools(server: McpServer): void {
     summaryFn: providerInvoiceSummary,
     description: composeDescription({
       purpose: "Liste et recherche les factures fournisseur (factures reçues des prestataires).",
-      when: "pour suivre les factures d'achat, par fournisseur, état, origine (saisie manuelle / facture électronique reçue) ou période ; `withoutResource: true` + `sources: [1]` = factures électroniques arrivées sans ressource, à rattacher avec `boond_provider_invoices_update` (`resourceId`).",
+      when: "pour suivre les factures d'achat, par fournisseur, ressource, état, origine (saisie manuelle / facture électronique reçue), période ou montant (`amountType` + `amount` ou `amountMin` / `amountMax`, non vérifié) ; `withoutResource: true` + `sources: [1]` = factures électroniques arrivées sans ressource, à rattacher avec `boond_provider_invoices_update` (`resourceId`).",
       instead:
         "`boond_invoices_search` pour les factures de vente adressées aux clients — sens opposé, endpoint distinct.",
       returns:
@@ -152,6 +176,7 @@ export function registerProviderInvoiceTools(server: McpServer): void {
         "`provider` envoie `providerCompany` et `providerContact` ensemble (la doc de l'API les exige ensemble) ; `provider: null` retire les deux.",
         "`payments` (doc de l'API, non vérifié) : enregistré quand la facture a une ressource et que la requête la valide, ou seul pour une facture sans ressource ; remplacement ou ajout à la liste existante non vérifié, relire la facture.",
         "`paidDate` et `dueDate` ne figurent pas dans la doc de modification : l'API peut les ignorer, relire la facture.",
+        "`mainManagerId`, `agencyId`, `poleId` / `billingDetailId` (`null` retire), `stateReason`, devise et taux suivent la doc de l'API, non vérifiés.",
       ],
       returns: "confirmation et fiche de la facture fournisseur modifiée.",
     }),

@@ -187,9 +187,16 @@ amountExcludingTax, amountIncludingTax, taxRate, purchase: { id } }`, saved
 when the invoice has a resource and the request validates it, or alone on an
 invoice without resource) is exposed as `purchaseId` mapped to `purchase.id`;
 not exercised, including whether the array replaces the invoice's existing
-payments or adds to them. Not exposed on purpose: `stateReason`, `tmpFile`,
-`mainManager`, `agency`, `pole`, `billingDetail`, create-side `payments`
-(`deliveryId`), and the search's amount / multi-id / export filters. List rows (60 read live, 2026-11-26) carry `vatNumber` (set on 10,
+payments or adds to them. Everything else in bodyPost.json / bodyPut.json is exposed too
+(`mainManagerId`, `agencyId`, nullable `poleId` / `billingDetailId`,
+`stateReason`, create-side `payments` by `deliveryId`, update-side
+`creationDate`, currency and rates), none exercised. Not exposed on purpose:
+`tmpFile` (the MCP has no way to obtain a temporary file id for it) and, on
+the search, `columns` (UI columns, no effect on the data) and
+`exportToDownloadCenter` / `exportFormat` (they create an export job, a side
+effect a read-only search tool must not have). The `typeOf` that
+bodyPost.json lists as required has no matching property in the schema; it is
+not sent. List rows (60 read live, 2026-11-26) carry `vatNumber` (set on 10,
 four distinct values, none the tenant's own: the supplier's) and, when set,
 `resource`; none carried `providerCompany`, which is why the search
 summary shows the VAT number and not the supplier's name.
