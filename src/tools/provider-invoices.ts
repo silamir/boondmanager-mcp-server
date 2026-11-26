@@ -40,7 +40,7 @@ const SOURCE_LABELS: Readonly<Record<number, string>> = { 0: "manuelle", 1: "él
  * resource). The default summary only showed the state id and the reference.
  */
 export function providerInvoiceSummary(item: JsonApiResource): string {
-  const a = (item.attributes ?? {});
+  const a = item.attributes ?? {};
   const rel = item.relationships as Record<string, { data?: { id?: string } | null } | undefined> | undefined;
   // In list rows (verified live) an invoice without resource has no `resource`
   // key at all, while one with a resource carries it; `data: null` is the
