@@ -179,5 +179,11 @@ Writes: `relationships.deliveriesPurchases` on `POST /orders` and
 with duplicates dropped. **Not exercised**: whether the array replaces the
 existing list (assumed, like every JSON:API to-many relationship and like
 `actualExpenses`), whether an empty array un-correlates everything, and which
-422 an item from another project returns. Confirm on a sandbox and fix this
+422 an item from another project returns. Reported, not verified on a sandbox: correlating a delivery that starts before
+the order moves the order's `startDate` back (and un-correlating it restores
+it), as if BoondManager widened the order's period to cover its correlated
+deliveries; the create / update descriptions tell the model to read the order
+back. The RAML also documents a `forceDate` boolean on orders
+(`TAB_BONDECOMMANDE.BDC_FORCE_DATE`), not exposed and not exercised.
+Confirm on a sandbox and fix this
 paragraph.

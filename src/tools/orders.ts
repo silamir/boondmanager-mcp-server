@@ -187,6 +187,7 @@ async function correlatedSection(id: string): Promise<string> {
 
 const DELIVERIES_PURCHASES_WRITE = [
   '`deliveriesPurchases` (prestations / achats corrélés, `{ type: "delivery" | "purchase", id }`) est **supposé remplacer toute la liste**, comme toute relation JSON:API multiple : relire d\'abord avec `boond_orders_get` (section « Prestations / achats corrélés »), fusionner, puis renvoyer la liste complète. Omettre le champ n\'envoie rien.',
+  "Boond peut recalculer les dates de la commande à partir des prestations corrélées (début avancé si une prestation commence plus tôt) : relire la commande après écriture et vérifier `startDate` / `endDate`.",
   "Écriture de `deliveriesPurchases` **non vérifiée** : nom et forme tirés de la doc RAML (`relationships.deliveriesPurchases`), jamais exercés sur un bac à sable ; le remplacement de la liste et l'effet de `[]` (décorréler tout ?) sont des suppositions. Relire la commande après écriture.",
 ];
 
