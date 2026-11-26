@@ -519,7 +519,8 @@ export function registerDeleteTool(
  * payload. `undefined` attributes are dropped (so PATCH only touches the
  * fields the caller actually supplied). `relationships` maps a relation name
  * to a `{ id, type }` resource identifier and is wrapped in the JSON:API
- * `{ data: ... }` envelope; entries are skipped when their value is undefined.
+ * `{ data: ... }` envelope; entries are skipped when their value is undefined,
+ * and a `null` entry is sent as `{ data: null }`, which clears the link.
  */
 export function buildJsonApiBody(
   type: string,

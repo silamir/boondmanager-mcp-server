@@ -264,6 +264,38 @@ describe("boond_provider_invoices_update provider relationships (RAML providerIn
   });
 });
 
+describe("boond_provider_invoices_update handler with provider", () => {
+  it("PUTs attributes and both provider relationships, or clears them", async () => {
+    const { toolCallback } = await import("./test-helpers.js");
+    vi.mocked(apiRequest).mockClear();
+    vi.mocked(apiRequest).mockResolvedValue({ data: { id: "12", type: "providerinvoice", attributes: {} } } as never);
+    const server = createMockServer();
+    registerProviderInvoiceTools(server);
+    const update = toolCallback(server, "boond_provider_invoices_update");
+    await update({ id: "12", paidDate: "2026-11-30", provider: { companyId: "7", contactId: "8" } });
+    expect(apiRequest).toHaveBeenLastCalledWith("/provider-invoices/12", "PUT", {
+      data: {
+        type: "providerinvoice",
+        id: "12",
+        attributes: { paidDate: "2026-11-30" },
+        relationships: {
+          providerCompany: { data: { id: "7", type: "company" } },
+          providerContact: { data: { id: "8", type: "contact" } },
+        },
+      },
+    });
+    await update({ id: "12", provider: null });
+    expect(apiRequest).toHaveBeenLastCalledWith("/provider-invoices/12", "PUT", {
+      data: {
+        type: "providerinvoice",
+        id: "12",
+        attributes: {},
+        relationships: { providerCompany: { data: null }, providerContact: { data: null } },
+      },
+    });
+  });
+});
+
 describe("providerInvoiceSummary VAT number", () => {
   it("shows the supplier's VAT number carried by list rows", async () => {
     const { providerInvoiceSummary } = await import("./provider-invoices.js");

@@ -175,8 +175,9 @@ an invoice (an e-invoice received without one) cannot be set through the
 public API as documented; the update description says so. Not exercised: the
 `provider` write, and whether an undocumented `relationships.resource` on PUT
 is applied or silently ignored — try both on a sandbox, then fix this
-paragraph. List rows (60 read live, 2026-11-26) carry `vatNumber` and, when
-set, `resource`; none carried `providerCompany`, which is why the search
+paragraph. List rows (60 read live, 2026-11-26) carry `vatNumber` (set on 10,
+four distinct values, none the tenant's own: the supplier's) and, when set,
+`resource`; none carried `providerCompany`, which is why the search
 summary shows the VAT number and not the supplier's name.
 
 **Order correlations (`deliveriesPurchases`)**: the deliveries and purchases
