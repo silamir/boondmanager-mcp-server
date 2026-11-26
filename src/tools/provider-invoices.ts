@@ -13,6 +13,7 @@ import {
   registerUpdateTool,
 } from "./crud-factory.js";
 import { composeDescription } from "./description-builders.js";
+import type { JsonApiResource } from "../types.js";
 
 const OPTS = {
   entityName: "facture fournisseur",
@@ -29,6 +30,34 @@ export function buildProviderInvoiceBody(params: Record<string, unknown>): unkno
     providerCompany: companyId ? { id: String(companyId), type: "company" } : undefined,
     providerContact: contactId ? { id: String(contactId), type: "contact" } : undefined,
   });
+}
+
+const SOURCE_LABELS: Readonly<Record<number, string>> = { 0: "manuelle", 1: "électronique" };
+
+/**
+ * One line per provider invoice: what a human needs to recognise it and to
+ * spot the ones still to process (an e-invoice that arrived without a
+ * resource). The default summary only showed the state id and the reference.
+ */
+export function providerInvoiceSummary(item: JsonApiResource): string {
+  const a = item.attributes ?? {};
+  const rel = (item.relationships ?? {}) as Record<string, { data?: { id?: string } | null } | undefined>;
+  const resourceId = rel["resource"]?.data?.id;
+  const source = typeof a["source"] === "number" ? (SOURCE_LABELS[a["source"]] ?? `source ${a["source"]}`) : undefined;
+  const amounts =
+    a["amountExcludingTax"] !== undefined || a["amountIncludingTax"] !== undefined
+      ? `${String(a["amountExcludingTax"] ?? "?")} HT / ${String(a["amountIncludingTax"] ?? "?")} TTC`
+      : undefined;
+  const parts = [
+    `[providerinvoice #${item.id}]`,
+    a["reference"] !== undefined ? `Réf: ${String(a["reference"])}` : undefined,
+    a["invoiceDate"] ? `Date: ${String(a["invoiceDate"])}` : undefined,
+    amounts,
+    a["state"] !== undefined ? `Statut: ${String(a["state"])}` : undefined,
+    source ? `Source: ${source}` : undefined,
+    resourceId ? `Ressource: #${resourceId}` : "Sans ressource",
+  ];
+  return parts.filter((p): p is string => p !== undefined).join(" | ");
 }
 
 export function registerProviderInvoiceTools(server: McpServer): void {
@@ -49,9 +78,10 @@ export function registerProviderInvoiceTools(server: McpServer): void {
 
   registerSearchTool(server, OPTS, {
     schema: ProviderInvoiceSearchSchema,
+    summaryFn: providerInvoiceSummary,
     description: composeDescription({
       purpose: "Liste et recherche les factures fournisseur (factures reçues des prestataires).",
-      when: "pour suivre les factures d'achat, par fournisseur, état ou période.",
+      when: "pour suivre les factures d'achat, par fournisseur, état, origine (saisie manuelle / facture électronique reçue) ou période ; `withoutResource: true` + `sources: [1]` = factures électroniques arrivées sans ressource, à traiter.",
       instead:
         "`boond_invoices_search` pour les factures de vente adressées aux clients — sens opposé, endpoint distinct.",
       returns: "page de résumés de factures fournisseur (référence, date, montants). Lecture seule.",

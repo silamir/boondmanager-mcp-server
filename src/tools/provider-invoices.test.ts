@@ -126,3 +126,65 @@ describe("boond_provider_invoices_update / _delete (issue #252)", () => {
     });
   });
 });
+
+describe("provider invoice search (filters verified live 2026-11-26)", () => {
+  it("forwards providerInvoiceStates, sources, withoutResource and the period filters verbatim", async () => {
+    const { apiSearch } = await import("../services/boond-client.js");
+    const { toolCallback } = await import("./test-helpers.js");
+    vi.mocked(apiSearch).mockResolvedValue({ data: [], meta: { totals: { rows: 0 } } } as never);
+    const server = createMockServer();
+    registerProviderInvoiceTools(server);
+    await toolCallback(
+      server,
+      "boond_provider_invoices_search"
+    )({
+      providerInvoiceStates: [1],
+      sources: [1],
+      withoutResource: true,
+      period: "invoiceDate",
+      startDate: "2026-11-01",
+      endDate: "2026-11-30",
+    });
+    const query = vi.mocked(apiSearch).mock.calls.at(-1)?.[1] as Record<string, unknown>;
+    expect(vi.mocked(apiSearch).mock.calls.at(-1)?.[0]).toBe("/provider-invoices");
+    expect(query).toMatchObject({
+      providerInvoiceStates: [1],
+      sources: [1],
+      withoutResource: "true",
+      period: "invoiceDate",
+      startDate: "2026-11-01",
+      endDate: "2026-11-30",
+    });
+  });
+});
+
+describe("providerInvoiceSummary", () => {
+  it("shows reference, date, amounts, state, source and resource", async () => {
+    const { providerInvoiceSummary } = await import("./provider-invoices.js");
+    expect(
+      providerInvoiceSummary({
+        id: "143",
+        type: "providerinvoice",
+        attributes: {
+          reference: "F-2026-11-011",
+          invoiceDate: "2026-11-24",
+          amountExcludingTax: 15725,
+          amountIncludingTax: 18870,
+          state: 1,
+          source: 1,
+        },
+        relationships: { resource: { data: null } },
+      } as never)
+    ).toBe(
+      "[providerinvoice #143] | Réf: F-2026-11-011 | Date: 2026-11-24 | 15725 HT / 18870 TTC | Statut: 1 | Source: électronique | Sans ressource"
+    );
+    expect(
+      providerInvoiceSummary({
+        id: "130",
+        type: "providerinvoice",
+        attributes: { reference: "F-2026-11-010", source: 0 },
+        relationships: { resource: { data: { id: "140", type: "resource" } } },
+      } as never)
+    ).toBe("[providerinvoice #130] | Réf: F-2026-11-010 | Source: manuelle | Ressource: #140");
+  });
+});
