@@ -78,21 +78,23 @@ unknown should be fixed here when a write settles them.
   codes (`1` Normale/production, `4` RTT, `5` Maladie, `9` Intervention…),
   which `/application/dictionary` and `/agencies/{id}` do not publish. This is
   why `boond_timesheets_default` exists and renders that resource attribute.
-- **Verified on write (2026-11-26, production, three monthly reports created
-  through `boond_timesheets_create`)**: every `regularTimes` /
-  `exceptionalTimes` line needs a `row`: the grid line, one per (work unit
-  type, project, delivery, batch). Without it the API answers 200 and drops
-  every line, POST and PUT alike: the report stays empty. `withRows()` numbers
-  them (any distinct integer, the API replaces it with its own row id). An
-  absence line with `project` / `delivery` / `batch` sent as `null` is accepted.
-  A half day split between production and absence is two lines of `0.5` on the
-  same date, which end up on two rows. `agencyId` was always sent, so whether
-  `agency` is required on POST is still unknown, as are the 422 "waves" of
-  required fields. `state` is kept out of both schemas on the strength of the
-  expenses finding (same validation workflow — `boond_validations_search`
-  covers `timesReport`); a created report lands in `savedAndNoValidation`.
-  `regularTimes` / `exceptionalTimes` on PUT replace the whole array (a PUT
-  with rows rewrote all lines of an empty report).
+- **Verified on write (2026-11-26, production)**: a direct `PUT
+  /times-reports/{id}` first, then two monthly reports created through
+  `boond_timesheets_create` (20 and 21 lines). Every `regularTimes` line needs
+  a `row`: the grid line, one per (work unit type, project, delivery, batch).
+  Without it the API answers 200 and drops every line, on POST and on PUT: the
+  report stays empty. `withRows()` numbers them (any distinct integer, the API
+  replaces it with its own row id). An absence line with `project` /
+  `delivery` / `batch` sent as `null` is accepted. A half day split between
+  production and absence is two lines of `0.5` on the same date, which end up
+  on two rows. Created reports read back as `savedAndNoValidation`.
+- **Still unverified**: `exceptionalTimes` (numbered the same way by analogy,
+  never sent); whether `agency` is required on POST (`agencyId` was always
+  sent); the 422 "waves" of required fields; `regularTimes` /
+  `exceptionalTimes` on PUT replacing the whole array (documented by analogy
+  with `actualExpenses`, the only PUT exercised targeted an empty report).
+  `state` is kept out of both schemas on the strength of the expenses finding
+  (same validation workflow, `boond_validations_search` covers `timesReport`).
 - The previous `boond_timesheets_create` sent `totalDays`, `totalHours`,
   `state`, `note` at report level — line vocabulary in a report slot, none of
   it in `models.timesreport`; it had never created anything.

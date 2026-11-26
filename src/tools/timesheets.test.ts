@@ -360,3 +360,31 @@ describe("buildTimesheetBody rows", () => {
     expect(body.data.attributes.regularTimes.map((l) => l.row)).toEqual([1, 2, 1, 2]);
   });
 });
+
+describe("boond_timesheets_create rows through the handler", () => {
+  it("puts a split half day on two rows and numbers exceptionalTimes on their own", async () => {
+    const server = { registerTool: vi.fn() } as unknown as McpServer;
+    vi.mocked(apiRequest).mockResolvedValue({ data: { id: "7", type: "timesreport", attributes: {} } } as never);
+    registerTimesheetTools(server);
+    await toolCallback(
+      server,
+      "boond_timesheets_create"
+    )({
+      resourceId: "140",
+      term: "2026-11",
+      regularTimes: [
+        { startDate: "2026-11-26", duration: 1, workUnitTypeReference: 1, projectId: "136", deliveryId: "354" },
+        { startDate: "2026-11-27", duration: 0.5, workUnitTypeReference: 1, projectId: "136", deliveryId: "354" },
+        { startDate: "2026-11-27", duration: 0.5, workUnitTypeReference: 15 },
+      ],
+      exceptionalTimes: [
+        { startDate: "2026-11-28", duration: 1, workUnitTypeReference: 9, projectId: "136", deliveryId: "354" },
+      ],
+    });
+    const body = vi.mocked(apiRequest).mock.calls.at(-1)?.[2] as {
+      data: { attributes: { regularTimes: { row: number }[]; exceptionalTimes: { row: number }[] } };
+    };
+    expect(body.data.attributes.regularTimes.map((l) => l.row)).toEqual([1, 1, 2]);
+    expect(body.data.attributes.exceptionalTimes.map((l) => l.row)).toEqual([1]);
+  });
+});

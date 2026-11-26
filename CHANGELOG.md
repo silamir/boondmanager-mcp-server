@@ -7,7 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
-- `boond_timesheets_create` / `boond_timesheets_update` : les lignes du CRA sont désormais numérotées (`row`, une par combinaison type d'unité d'œuvre / projet / prestation / lot). Sans ce champ, BoondManager répondait 200 mais ignorait toutes les lignes `regularTimes` / `exceptionalTimes` : le CRA restait vide. Vérifié en production le 26/11/2026 (création d'un CRA de 20 lignes, toutes conservées).
+- `boond_timesheets_create` / `boond_timesheets_update` : les lignes du CRA sont désormais numérotées (`row`, une par combinaison type d'unité d'œuvre / projet / prestation / lot). Sans ce champ, BoondManager répondait 200 mais ignorait toutes les lignes `regularTimes` : le CRA restait vide. Vérifié en production le 26/11/2026 (deux CRA créés par l'outil, de 20 et 21 lignes dont une journée partagée, toutes conservées). `exceptionalTimes` est numéroté de la même façon par analogie, sans avoir été testé.
 
 ### Changed
 

@@ -41,11 +41,12 @@ export function buildTimeLine(line: TimesheetLineInput): Record<string, unknown>
  * report stays empty). A row is one line of the monthly grid, i.e. one
  * (work unit type, project, delivery, batch) combination; any distinct integer
  * per combination is accepted and the API replaces it with its own row id.
+ * Verified on `regularTimes`; `exceptionalTimes` is numbered the same way by
+ * analogy (each array from 1), not exercised yet.
  */
 export function withRows(lines: Record<string, unknown>[]): Record<string, unknown>[] {
   const rows = new Map<string, number>();
   return lines.map((line) => {
-    if (line.row !== undefined) return line;
     const ref = (o: unknown) =>
       (o as { id?: string; reference?: number } | null)?.id ?? (o as { reference?: number } | null)?.reference ?? "-";
     const key = [ref(line.workUnitType), ref(line.project), ref(line.delivery), ref(line.batch)].join("|");
@@ -251,7 +252,7 @@ export function registerTimesheetTools(server: McpServer): void {
       behaviour: [
         "Un CRA est un conteneur mensuel (`term` + `resource`) ; les lignes vont dans `regularTimes[]` (production et absences) et `exceptionalTimes[]` — chaque ligne = un jour, une durée, un type d'unité d'œuvre, et pour la production un couple `projectId` / `deliveryId` imputable.",
         "`state` n'est pas un champ d'écriture : il est piloté par le workflow de validation (`boond_validations_search`).",
-        "Écriture non idempotente. Vérifié en écriture le 26/11/2026 : chaque ligne doit porter un `row` (numéroté automatiquement par combinaison type / projet / prestation / lot), sinon l'API répond OK et ignore les lignes ; une journée partagée = deux lignes de 0,5 à la même date.",
+        "Écriture non idempotente. Vérifié en écriture le 26/11/2026 sur `regularTimes` : le serveur numérote lui-même le `row` de chaque ligne (ne pas le fournir), sans quoi l'API répond OK et ignore les lignes ; une journée partagée = deux lignes de 0,5 à la même date.",
       ],
       returns: "confirmation, ID créé (`structuredContent.id`) et fiche du CRA.",
     }),
