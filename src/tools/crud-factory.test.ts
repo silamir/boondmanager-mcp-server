@@ -160,6 +160,32 @@ describe("registerGetTool", () => {
     const [, metadata] = vi.mocked(server.registerTool).mock.calls[0];
     expect(metadata.annotations?.readOnlyHint).toBe(true);
   });
+
+  it("appends the appendSection text on a base read, and skips it on a tab read", async () => {
+    vi.mocked(apiRequest).mockResolvedValue({ data: { id: "7", type: "test", attributes: {} } } as never);
+    const appendSection = vi.fn().mockResolvedValue("SECTION");
+    registerGetTool(server, OPTS, { appendSection });
+    const handler = vi.mocked(server.registerTool).mock.calls[0]?.[2] as (p: unknown) => Promise<{
+      content: { text: string }[];
+    }>;
+    const base = await handler({ id: "7" });
+    expect(appendSection).toHaveBeenCalledWith("7");
+    expect(base.content[0]?.text.endsWith("\n\nSECTION")).toBe(true);
+    appendSection.mockClear();
+    const tabRead = await handler({ id: "7", tab: "information" });
+    expect(appendSection).not.toHaveBeenCalled();
+    expect(tabRead.content[0]?.text).not.toContain("SECTION");
+  });
+
+  it("appends nothing when appendSection returns undefined", async () => {
+    vi.mocked(apiRequest).mockResolvedValue({ data: { id: "7", type: "test", attributes: {} } } as never);
+    registerGetTool(server, OPTS, { withTab: false, appendSection: () => Promise.resolve(undefined) });
+    const handler = vi.mocked(server.registerTool).mock.calls[0]?.[2] as (p: unknown) => Promise<{
+      content: { text: string }[];
+    }>;
+    const result = await handler({ id: "7" });
+    expect(result.content[0]?.text).not.toContain("\n\nundefined");
+  });
 });
 
 describe("registerCreateTool", () => {

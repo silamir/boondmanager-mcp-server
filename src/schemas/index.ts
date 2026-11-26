@@ -1353,6 +1353,26 @@ export const InvoiceSearchSchema = z
 
 // ---- Order schemas (Bons de commande) ----
 
+// `relationships.deliveriesPurchases` on POST /orders and PUT /orders/{id}/information
+// (RAML schemas orders/bodyPost.json and orders/informationBodyPut.json): items are
+// `{ id, type: "delivery" | "purchase" }`, `uniqueItems`. Read back on GET
+// /orders/{id}/information (verified live 2026-11-26); the write path is not verified.
+const orderDeliveriesPurchasesField = z
+  .array(
+    z
+      .object({
+        type: z
+          .enum(["delivery", "purchase"])
+          .describe("`delivery` (prestation, MIS<id>) ou `purchase` (achat, ACH<id>)."),
+        id: EntityIdSchema.describe("ID numérique de la prestation ou de l'achat."),
+      })
+      .strict()
+  )
+  .optional()
+  .describe(
+    "Prestations / achats corrélés au bon de commande. Supposé remplacer toute la liste existante (non vérifié) : relire `boond_orders_get`, fusionner, renvoyer la liste complète."
+  );
+
 export const OrderCreateSchema = z
   .object({
     reference: z.string().optional().describe("Référence du bon de commande"),
@@ -1366,6 +1386,7 @@ export const OrderCreateSchema = z
     customerAgreement: z.boolean().optional().describe("Accord client reçu"),
     schedules: z.array(z.record(z.string(), z.unknown())).optional().describe("Lignes/échéances de commande"),
     note: z.string().optional().describe("Notes / commentaires"),
+    deliveriesPurchases: orderDeliveriesPurchasesField,
   })
   .strict();
 
@@ -1381,6 +1402,7 @@ export const OrderUpdateSchema = z
     customerAgreement: z.boolean().optional().describe("Accord client reçu"),
     schedules: z.array(z.record(z.string(), z.unknown())).optional().describe("Lignes/échéances de commande"),
     note: z.string().optional().describe("Notes"),
+    deliveriesPurchases: orderDeliveriesPurchasesField,
   })
   .strict();
 

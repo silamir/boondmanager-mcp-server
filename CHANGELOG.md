@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Bons de commande : prestations et achats corrélés (relation `deliveriesPurchases`, bloc « Prestations / Achats corrélés » de l'interface Boond). `boond_orders_get` ajoute sous la fiche la liste des prestations / achats corrélés (`NOM Prénom - début - fin - MIS<id>`, `ACH<id> - titre`) et les autres prestations / achats du projet qui recoupent la période de la commande : la relation n'existe pas sur `GET /orders/{id}`, elle est lue en plus sur `GET /orders/{id}/information` (lecture vérifiée sur une instance réelle le 26/11/2026). `boond_orders_create` et `boond_orders_update` acceptent `deliveriesPurchases` (`[{ type: "delivery" | "purchase", id }]`), envoyé en `relationships.deliveriesPurchases` comme le décrit la doc RAML ; cette écriture n'est **pas vérifiée** (aucun essai sur un bac à sable) : le remplacement de toute la liste et l'effet d'une liste vide sont supposés. Les descriptions préviennent aussi que Boond peut recalculer les dates de la commande à partir des prestations corrélées, et qu'il faut relire la commande après écriture.
+
 ### Fixed
 
 - CI : le workflow `Qlty coverage` est ignoré sur les pull requests ouvertes depuis un fork. GitHub n'y délivre pas de jeton OIDC, et la publication échouait avec `Unable to get ACTIONS_ID_TOKEN_REQUEST_URL`. La couverture de ces PR reste vérifiée par `ci.yml`. Aucun changement du serveur.

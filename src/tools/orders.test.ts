@@ -174,3 +174,178 @@ describe("order body branches (#245)", () => {
     ]);
   });
 });
+
+// Made-up data in the SHAPE of GET /orders/{id}/information as read on a real
+// tenant (2026-11-26): `relationships.deliveriesPurchases` = the ticked items,
+// `included` = every delivery / purchase of the project plus their resources.
+// That read only had deliveries ticked; the ticked purchase here is illustrative.
+const INFORMATION = {
+  data: {
+    id: "1",
+    type: "order",
+    attributes: { startDate: "2026-10-01", endDate: "2026-12-31" },
+    relationships: {
+      deliveriesPurchases: {
+        data: [
+          { id: "11", type: "delivery" },
+          { id: "21", type: "purchase" },
+        ],
+      },
+    },
+  },
+  included: [
+    {
+      id: "11",
+      type: "delivery",
+      attributes: { title: "Mission T4", startDate: "2026-10-01", endDate: "2026-12-31" },
+      relationships: { dependsOn: { data: { id: "31", type: "resource" } } },
+    },
+    {
+      id: "12",
+      type: "delivery",
+      attributes: { title: "", startDate: "2026-10-01", endDate: "2026-12-31" },
+      relationships: { dependsOn: { data: { id: "32", type: "resource" } } },
+    },
+    {
+      id: "13",
+      type: "delivery",
+      attributes: { title: "Ancienne", startDate: "2024-10-28", endDate: "2025-01-31" },
+      relationships: { dependsOn: { data: { id: "31", type: "resource" } } },
+    },
+    {
+      id: "21",
+      type: "purchase",
+      attributes: { reference: "ACH21", title: "Sous-traitance T4", startDate: "2026-10-01", endDate: "2026-12-31" },
+    },
+    { id: "31", type: "resource", attributes: { lastName: "DUPONT", firstName: "Jeanne" } },
+    { id: "32", type: "resource", attributes: { lastName: "MARTIN", firstName: "Paul" } },
+  ],
+};
+
+describe("correlated deliveries / purchases (deliveriesPurchases)", () => {
+  let server: McpServer;
+  const handler = (name: string) =>
+    vi.mocked(server.registerTool).mock.calls.find((c) => c[0] === name)![2] as (p: unknown) => Promise<unknown>;
+  const sentBody = (i = 0) => vi.mocked(apiRequest).mock.calls[i][2] as { data: Record<string, unknown> };
+
+  beforeEach(() => {
+    server = createMockServer();
+    vi.mocked(apiRequest).mockReset();
+    vi.mocked(apiRequest).mockResolvedValue({ data: { id: "1", type: "order", attributes: {} } } as never);
+    registerOrderTools(server);
+  });
+
+  it("renders ticked items like the UI, then the other project items overlapping the order period", async () => {
+    const { formatCorrelatedDeliveriesPurchases } = await import("./orders.js");
+    const text = formatCorrelatedDeliveriesPurchases(INFORMATION as never);
+    expect(text).toContain("- delivery #11 : DUPONT Jeanne - 2026-10-01 - 2026-12-31 - MIS11 (Mission T4)");
+    expect(text).toContain("- purchase #21 : ACH21 - Sous-traitance T4 - 2026-10-01 - 2026-12-31");
+    expect(text).toContain("- delivery #12 : MARTIN Paul - 2026-10-01 - 2026-12-31 - MIS12");
+    expect(text).not.toContain("#13");
+    expect(text).toContain("(1 autre(s) hors de la période de la commande, non listé(s))");
+  });
+
+  it("says 'aucun' when nothing is correlated, and falls back to the bare reference for an item not included", async () => {
+    const { formatCorrelatedDeliveriesPurchases } = await import("./orders.js");
+    const empty = formatCorrelatedDeliveriesPurchases({
+      data: { id: "1", type: "order", attributes: {}, relationships: { deliveriesPurchases: { data: [] } } },
+    } as never);
+    expect(empty.split("\n")[1]).toBe("- aucun");
+    const bare = formatCorrelatedDeliveriesPurchases({
+      data: {
+        id: "1",
+        type: "order",
+        attributes: {},
+        relationships: { deliveriesPurchases: { data: [{ id: "9", type: "purchase" }] } },
+      },
+    } as never);
+    expect(bare).toContain("- purchase #9");
+  });
+
+  it("boond_orders_get reads the base record, then /information for the correlation section", async () => {
+    vi.mocked(apiRequest).mockImplementation(((path: string) =>
+      Promise.resolve(
+        path === "/orders/1/information" ? INFORMATION : { data: { id: "1", type: "order", attributes: {} } }
+      )) as never);
+    const result = (await handler("boond_orders_get")({ id: "1" })) as { content: { text: string }[] };
+    expect(
+      vi
+        .mocked(apiRequest)
+        .mock.calls.map((c) => c[0])
+        .sort()
+    ).toEqual(["/orders/1", "/orders/1/information"]);
+    expect(result.content[0]?.text).toContain("Prestations / achats corrélés");
+    expect(result.content[0]?.text).toContain("MIS11");
+  });
+
+  it("boond_orders_get still returns the record when /information fails", async () => {
+    vi.mocked(apiRequest).mockImplementation(((path: string) =>
+      path.endsWith("/information")
+        ? Promise.reject(new Error("BoondManager API 403"))
+        : Promise.resolve({ data: { id: "1", type: "order", attributes: {} } })) as never);
+    const result = (await handler("boond_orders_get")({ id: "1" })) as { content: { text: string }[] };
+    expect(result.content[0]?.text).toContain("lecture de /orders/1/information impossible (BoondManager API 403)");
+  });
+
+  it("update sends relationships.deliveriesPurchases on PUT /information, without duplicates", async () => {
+    await handler("boond_orders_update")({
+      id: "2",
+      deliveriesPurchases: [
+        { type: "delivery", id: "11" },
+        { type: "purchase", id: "21" },
+        { type: "delivery", id: "11" },
+      ],
+    });
+    expect(vi.mocked(apiRequest).mock.calls[0]?.[0]).toBe("/orders/2/information");
+    expect(vi.mocked(apiRequest).mock.calls[0]?.[1]).toBe("PUT");
+    expect(sentBody().data["relationships"]).toEqual({
+      deliveriesPurchases: {
+        data: [
+          { id: "11", type: "delivery" },
+          { id: "21", type: "purchase" },
+        ],
+      },
+    });
+  });
+
+  it("an empty list un-correlates everything; omitting the field sends no relationship", async () => {
+    await handler("boond_orders_update")({ id: "2", deliveriesPurchases: [] });
+    expect(sentBody(0).data["relationships"]).toEqual({ deliveriesPurchases: { data: [] } });
+    await handler("boond_orders_update")({ id: "2", note: "x" });
+    expect(sentBody(1).data["relationships"]).toBeUndefined();
+  });
+
+  it("create keeps the project relationship next to deliveriesPurchases", async () => {
+    await handler("boond_orders_create")({ projectId: "5", deliveriesPurchases: [{ type: "delivery", id: "11" }] });
+    expect(sentBody().data["relationships"]).toEqual({
+      project: { data: { id: "5", type: "project" } },
+      deliveriesPurchases: { data: [{ id: "11", type: "delivery" }] },
+    });
+  });
+
+  it("rejects an unknown item type or a non-numeric id", () => {
+    expect(OrderUpdateSchema.safeParse({ id: "1", deliveriesPurchases: [{ type: "project", id: "1" }] }).success).toBe(
+      false
+    );
+    expect(
+      OrderUpdateSchema.safeParse({ id: "1", deliveriesPurchases: [{ type: "delivery", id: "MIS1" }] }).success
+    ).toBe(false);
+  });
+});
+
+describe("correlated section size", () => {
+  it("lists at most 40 candidates and counts the rest", async () => {
+    const { formatCorrelatedDeliveriesPurchases } = await import("./orders.js");
+    const many = Array.from({ length: 45 }, (_, k) => ({
+      id: String(100 + k),
+      type: "delivery",
+      attributes: { title: `P${k}` },
+    }));
+    const out = formatCorrelatedDeliveriesPurchases({
+      data: { id: "1", type: "order", attributes: {}, relationships: { deliveriesPurchases: { data: [] } } },
+      included: many,
+    } as never);
+    expect(out.match(/^- delivery #/gm)?.length).toBe(40);
+    expect(out).toContain("(5 autre(s) non listé(s) : voir `boond_orders_information`)");
+  });
+});
