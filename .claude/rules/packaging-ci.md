@@ -111,7 +111,10 @@ The server ships as a Claude Code plugin so installation there is a form, not a
   `npm run test:coverage` on Node 22 and publishes `coverage/lcov.info` to Qlty
   Cloud over OIDC (no secret). Reporting only — the gating thresholds stay in
   `vitest.config.ts` via `ci.yml`. Its file name is what the Silamir compliance
-  bot checks (`qlty-coverage`), so don't fold it into `ci.yml`.
+  bot checks (`qlty-coverage`), so don't fold it into `ci.yml`. Skipped on fork
+  PRs: GitHub gives them no OIDC token, and the upload failed with
+  `Unable to get ACTIONS_ID_TOKEN_REQUEST_URL`. Do not switch to
+  `pull_request_target` to get one — it would run fork code with write access.
 - **CodeQL** (`.github/workflows/codeql.yml`): static analysis for JS/TS and GitHub Actions.
 - **Silamir compliance checks** (issue #355): the repository ruleset
   « Protection de main » requires five status checks — `Titre de PR`
