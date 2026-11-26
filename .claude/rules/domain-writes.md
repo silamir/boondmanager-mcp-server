@@ -184,6 +184,9 @@ the order moves the order's `startDate` back (and un-correlating it restores
 it), as if BoondManager widened the order's period to cover its correlated
 deliveries; the create / update descriptions tell the model to read the order
 back. The RAML also documents a `forceDate` boolean on orders
-(`TAB_BONDECOMMANDE.BDC_FORCE_DATE`), not exposed and not exercised.
+(`TAB_BONDECOMMANDE.BDC_FORCE_DATE`) on POST and on `PUT /orders/{id}/information`,
+not exposed and not exercised. Its RAML also lists it in the
+`GET /orders/{id}/information` response, but a live read does not return it
+(nor `GET /orders/{id}`, nor `GET /orders/default`): there is no way to read it.
 Confirm on a sandbox and fix this
 paragraph.
