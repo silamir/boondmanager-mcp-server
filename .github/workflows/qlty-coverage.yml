@@ -26,6 +26,13 @@ concurrency:
 jobs:
   coverage:
     name: Publish coverage
+    # GitHub never issues an OIDC token to a `pull_request` run from a fork
+    # (`id-token: write` is downgraded), so the Qlty upload fails with
+    # "Unable to get ACTIONS_ID_TOKEN_REQUEST_URL". Fork PRs skip the job;
+    # ci.yml still runs and gates their coverage. Not a required check.
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

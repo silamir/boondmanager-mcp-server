@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- CI : le workflow `Qlty coverage` est ignoré sur les pull requests ouvertes depuis un fork. GitHub n'y délivre pas de jeton OIDC, et la publication échouait avec `Unable to get ACTIONS_ID_TOKEN_REQUEST_URL`. La couverture de ces PR reste vérifiée par `ci.yml`. Aucun changement du serveur.
+
 ## [2.19.4] - 2026-11-26
 
 Version corrective : les lignes des CRA créés ou modifiés par `boond_timesheets_create` / `boond_timesheets_update` sont désormais conservées par BoondManager, et `boond_provider_invoices_search` expose les filtres que l'API applique réellement. Mises à jour de dépendances. Aucun nom d'outil ne change. Catalogue : 238 outils.
