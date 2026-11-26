@@ -108,6 +108,83 @@ describe("buildProviderInvoiceBody (#245)", () => {
       },
     });
   });
+
+  it("refuses a provider company without its contact, and the reverse (RAML bodyPost.json)", () => {
+    const base = { reference: "F-1", resourceId: "9", startDate: "2026-09-01", endDate: "2026-09-30" };
+    expect(() => buildProviderInvoiceBody({ ...base, companyId: "1" })).toThrow(/vont ensemble/);
+    expect(() => buildProviderInvoiceBody({ ...base, contactId: "2" })).toThrow(/vont ensemble/);
+  });
+});
+
+describe("boond_provider_invoices_update payments (RAML bodyPut.json)", () => {
+  it("maps purchaseId to purchase: { id } and keeps the other payment fields", async () => {
+    const { buildProviderInvoiceUpdateBody } = await import("./provider-invoices.js");
+    expect(
+      buildProviderInvoiceUpdateBody({
+        id: "12",
+        payments: [
+          { purchaseId: "5", state: 1, amountExcludingTax: 100, amountIncludingTax: 120, taxRate: 20 },
+          { id: "3", purchaseId: "6", state: 2, amountExcludingTax: 50, amountIncludingTax: 60, taxRate: 20 },
+        ],
+      })
+    ).toEqual({
+      data: {
+        type: "providerinvoice",
+        id: "12",
+        attributes: {
+          payments: [
+            { state: 1, amountExcludingTax: 100, amountIncludingTax: 120, taxRate: 20, purchase: { id: "5" } },
+            { id: "3", state: 2, amountExcludingTax: 50, amountIncludingTax: 60, taxRate: 20, purchase: { id: "6" } },
+          ],
+        },
+      },
+    });
+  });
+
+  it("goes through the handlers: create refuses a lone companyId, update PUTs the mapped payments", async () => {
+    const { toolCallback } = await import("./test-helpers.js");
+    vi.mocked(apiRequest).mockClear();
+    vi.mocked(apiRequest).mockResolvedValue({ data: { id: "12", type: "providerinvoice", attributes: {} } } as never);
+    const server = createMockServer();
+    registerProviderInvoiceTools(server);
+    await expect(
+      toolCallback(
+        server,
+        "boond_provider_invoices_create"
+      )({ reference: "F-1", resourceId: "9", startDate: "2026-09-01", endDate: "2026-09-30", companyId: "1" })
+    ).rejects.toThrow(/vont ensemble/);
+    expect(apiRequest).not.toHaveBeenCalled();
+    await toolCallback(
+      server,
+      "boond_provider_invoices_update"
+    )({
+      id: "12",
+      payments: [{ purchaseId: "5", state: 1, amountExcludingTax: 100, amountIncludingTax: 120, taxRate: 20 }],
+    });
+    expect(apiRequest).toHaveBeenLastCalledWith("/provider-invoices/12", "PUT", {
+      data: {
+        type: "providerinvoice",
+        id: "12",
+        attributes: {
+          payments: [
+            { state: 1, amountExcludingTax: 100, amountIncludingTax: 120, taxRate: 20, purchase: { id: "5" } },
+          ],
+        },
+      },
+    });
+  });
+
+  it("requires the documented payment fields and rejects unknown ones", async () => {
+    const { ProviderInvoiceUpdateSchema } = await import("../schemas/index.js");
+    const ok = { purchaseId: "5", state: 1, amountExcludingTax: 100, amountIncludingTax: 120, taxRate: 20 };
+    expect(ProviderInvoiceUpdateSchema.safeParse({ id: "12", payments: [ok] }).success).toBe(true);
+    expect(ProviderInvoiceUpdateSchema.safeParse({ id: "12", payments: [{ ...ok, taxRate: undefined }] }).success).toBe(
+      false
+    );
+    expect(ProviderInvoiceUpdateSchema.safeParse({ id: "12", payments: [{ ...ok, deliveryId: "4" }] }).success).toBe(
+      false
+    );
+  });
 });
 
 describe("boond_provider_invoices_update / _delete (issue #252)", () => {

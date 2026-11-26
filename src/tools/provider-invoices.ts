@@ -22,9 +22,17 @@ const OPTS = {
   prefix: "boond_provider_invoices",
 };
 
-/** `/provider-invoices` payload: `resource` is mandatory, `providerCompany` / `providerContact` optional. */
+/**
+ * `/provider-invoices` payload: `resource` is mandatory, `providerCompany` /
+ * `providerContact` optional but, per the RAML bodyPost.json, set together.
+ */
 export function buildProviderInvoiceBody(params: Record<string, unknown>): unknown {
   const { companyId, contactId, resourceId, ...attrs } = params;
+  if (Boolean(companyId) !== Boolean(contactId)) {
+    throw new Error(
+      "`companyId` et `contactId` vont ensemble : l'API exige le contact fournisseur dès que la société est renseignée, et inversement."
+    );
+  }
   return buildJsonApiBody("providerinvoice", attrs, undefined, {
     resource: { id: String(resourceId), type: "resource" },
     providerCompany: companyId ? { id: String(companyId), type: "company" } : undefined,
@@ -39,8 +47,15 @@ export function buildProviderInvoiceBody(params: Record<string, unknown>): unkno
  * `bodyPut.json`, but applied by the API (changed and restored live, 2026-11-26).
  */
 export function buildProviderInvoiceUpdateBody(params: Record<string, unknown>): unknown {
-  const { id, provider, resourceId, ...attrs } = params;
+  const { id, provider, resourceId, payments, ...attrs } = params;
   const p = provider as { companyId: string; contactId: string } | null | undefined;
+  if (Array.isArray(payments)) {
+    // RAML bodyPut.json: `purchase: { id }`, not a flat purchaseId.
+    attrs["payments"] = (payments as Array<Record<string, unknown>>).map(({ purchaseId, ...rest }) => ({
+      ...rest,
+      purchase: { id: String(purchaseId) },
+    }));
+  }
   const relationships = {
     ...(resourceId ? { resource: { id: String(resourceId), type: "resource" } } : {}),
     ...(p === undefined
@@ -100,7 +115,7 @@ export function registerProviderInvoiceTools(server: McpServer): void {
       instead:
         "`boond_invoices_create` pour une facture de vente adressée à un client — les deux sens ne partagent pas d'endpoint.",
       behaviour: [
-        "`resource`, `providerCompany` et `providerContact` sont attendus sous forme d'ID numériques.",
+        "`resource`, `providerCompany` et `providerContact` sont attendus sous forme d'ID numériques ; `companyId` et `contactId` vont ensemble (exigé par l'API).",
         "Écriture non idempotente.",
       ],
       returns: "confirmation et fiche de la facture fournisseur créée, avec son ID dans `structuredContent.id`.",
@@ -122,18 +137,21 @@ export function registerProviderInvoiceTools(server: McpServer): void {
 
   registerGetTool(server, OPTS, { withTab: false, title: "Détails d'une facture fournisseur" });
 
-  // Issue #252: mark a provider invoice paid (paidDate / state), fix a period or an amount.
+  // Issue #252: change the state, fix a period or an amount. paidDate / dueDate are not in
+  // the RAML bodyPut.json; payments are the documented way to record a settlement.
   registerUpdateTool(server, OPTS, ProviderInvoiceUpdateSchema, buildProviderInvoiceUpdateBody, {
     method: "PUT",
     title: "Modifier une facture fournisseur",
     description: composeDescription({
       purpose:
         "Modifie une facture fournisseur : dates, montants, état, ressource (`resourceId`), ou la société et le contact fournisseur (`provider`).",
-      when: "pour marquer une facture payée (`paidDate`, `state`), corriger une période ou un montant, rattacher une facture électronique reçue sans ressource (`resourceId`), ou rattacher / détacher le fournisseur.",
+      when: "pour changer l'état, corriger une période ou un montant, rattacher une facture électronique reçue sans ressource (`resourceId`), rattacher / détacher le fournisseur, ou lier la facture à ses achats (`payments`).",
       instead: "`boond_provider_invoices_create` pour enregistrer une nouvelle facture.",
       behaviour: [
         "`PUT /provider-invoices/{id}` vérifié sur une instance réelle avec `resourceId` (ressource changée puis remise, autres champs intacts) ; `provider` non vérifié.",
         "`provider` envoie `providerCompany` et `providerContact` ensemble (la doc de l'API les exige ensemble) ; `provider: null` retire les deux.",
+        "`payments` (doc de l'API, non vérifié) : enregistré quand la facture a une ressource et que la requête la valide, ou seul pour une facture sans ressource ; remplacement ou ajout à la liste existante non vérifié, relire la facture.",
+        "`paidDate` et `dueDate` ne figurent pas dans la doc de modification : l'API peut les ignorer, relire la facture.",
       ],
       returns: "confirmation et fiche de la facture fournisseur modifiée.",
     }),

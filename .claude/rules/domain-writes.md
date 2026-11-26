@@ -178,7 +178,18 @@ another and back, each change visible on re-read, other attributes intact.
 That is `resourceId` on the update tool, the way to attach an e-invoice
 received without a resource. This also confirms the verb and route (`PUT`
 on the base resource, not `/information`) for provider invoices. Still not
-exercised: the `provider` write. List rows (60 read live, 2026-11-26) carry `vatNumber` (set on 10,
+exercised: the `provider` write. The same RAML pairing applies to
+`bodyPost.json`, so the create body builder refuses `companyId` without
+`contactId` and the reverse. `paidDate` / `dueDate` are read attributes
+(`profile.json`) but absent from `bodyPut.json`: kept on the update schema,
+flagged as possibly ignored. `payments` (bodyPut: `{ id?, state,
+amountExcludingTax, amountIncludingTax, taxRate, purchase: { id } }`, saved
+when the invoice has a resource and the request validates it, or alone on an
+invoice without resource) is exposed as `purchaseId` mapped to `purchase.id`;
+not exercised, including whether the array replaces the invoice's existing
+payments or adds to them. Not exposed on purpose: `stateReason`, `tmpFile`,
+`mainManager`, `agency`, `pole`, `billingDetail`, create-side `payments`
+(`deliveryId`), and the search's amount / multi-id / export filters. List rows (60 read live, 2026-11-26) carry `vatNumber` (set on 10,
 four distinct values, none the tenant's own: the supplier's) and, when set,
 `resource`; none carried `providerCompany`, which is why the search
 summary shows the VAT number and not the supplier's name.

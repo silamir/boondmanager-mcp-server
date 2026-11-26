@@ -2030,8 +2030,12 @@ export const ProviderInvoiceCreateSchema = z
   .object({
     reference: z.string().min(1).describe("Référence de la facture fournisseur"),
     resourceId: EntityIdSchema.describe("ID de la ressource portée par la facture fournisseur"),
-    companyId: EntityIdSchema.optional().describe("ID de la société fournisseur, mappé vers providerCompany"),
-    contactId: EntityIdSchema.optional().describe("ID du contact fournisseur, mappé vers providerContact"),
+    companyId: EntityIdSchema.optional().describe(
+      "ID de la société fournisseur, mappé vers providerCompany (avec `contactId` : l'API exige les deux)"
+    ),
+    contactId: EntityIdSchema.optional().describe(
+      "ID du contact fournisseur, mappé vers providerContact (avec `companyId` : l'API exige les deux)"
+    ),
     invoiceDate: z.string().optional().describe("Date de facture (YYYY-MM-DD)"),
     startDate: z.string().min(1).describe("Date de début de période (YYYY-MM-DD)"),
     endDate: z.string().min(1).describe("Date de fin de période (YYYY-MM-DD)"),
@@ -2059,8 +2063,20 @@ export const ProviderInvoiceUpdateSchema = z
     invoiceDate: z.string().optional().describe("Date de facture (YYYY-MM-DD)"),
     startDate: z.string().optional().describe("Date de début de période (YYYY-MM-DD)"),
     endDate: z.string().optional().describe("Date de fin de période (YYYY-MM-DD)"),
-    dueDate: z.string().optional().describe("Date d'échéance (YYYY-MM-DD)"),
-    paidDate: z.string().optional().describe("Date de règlement (YYYY-MM-DD) — marquer la facture payée"),
+    // dueDate / paidDate are read attributes (profile.json) but absent from the RAML
+    // bodyPut.json: the API may ignore them. Payments go through `payments`.
+    dueDate: z
+      .string()
+      .optional()
+      .describe(
+        "Date d'échéance (YYYY-MM-DD). Absente de la doc de modification : peut être ignorée, relire la facture"
+      ),
+    paidDate: z
+      .string()
+      .optional()
+      .describe(
+        "Date de règlement (YYYY-MM-DD). Absente de la doc de modification : peut être ignorée, relire la facture ; le règlement documenté passe par `payments`"
+      ),
     amountExcludingTax: z.number().optional().describe("Montant HT"),
     amountIncludingTax: z.number().optional().describe("Montant TTC"),
     state: stateField(
@@ -2080,6 +2096,30 @@ export const ProviderInvoiceUpdateSchema = z
       .nullable()
       .optional()
       .describe("Fournisseur : société et contact ensemble (exigé par l'API), ou `null` pour retirer les deux"),
+    // RAML bodyPut.json `payments`: link between the invoice and its purchases.
+    payments: z
+      .array(
+        z
+          .object({
+            id: EntityIdSchema.optional().describe("ID d'un paiement existant à modifier ; absent = nouveau paiement"),
+            purchaseId: EntityIdSchema.describe(
+              "ID de l'achat auquel appartient le paiement (`boond_purchases_search`)"
+            ),
+            state: z
+              .number()
+              .int()
+              .min(0)
+              .describe("État du paiement : ID de `setting.state.purchase` (`boond_application_dictionary`)"),
+            amountExcludingTax: z.number().describe("Montant HT du paiement"),
+            amountIncludingTax: z.number().describe("Montant TTC = HT × (1 + taxRate / 100)"),
+            taxRate: z.number().min(0).describe("Taux de TVA (`setting.taxRates`)"),
+          })
+          .strict()
+      )
+      .optional()
+      .describe(
+        "Paiements liant la facture à ses achats (doc de l'API). Un élément sans `id` crée un paiement, avec `id` il modifie celui de cet achat"
+      ),
   })
   .strict();
 
