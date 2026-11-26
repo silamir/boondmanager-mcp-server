@@ -1965,8 +1965,11 @@ export const PurchaseUpdateSchema = z
 
 // ---- Provider invoice schemas (factures fournisseur) ----
 
-// GET /provider-invoices — filters verified live on 2026-11-26 against the
-// row totals (125 rows unfiltered). The RAML is wrong on two of them:
+// GET /provider-invoices — every filter below verified live on 2026-11-26
+// against the row totals (125 rows unfiltered): providerInvoiceStates [1] → 10,
+// sources [1] → 9 / [0] → 116, withoutResource → 2, period=invoiceDate and
+// period=invoicePeriod on October → 18, periodDynamic=thisMonth → 6,
+// sort=invoiceDate asc / desc reorders. The RAML is wrong on two of them:
 // `sources` is 0 = manual / 1 = e-invoice (it documents 1 = manual / 2 = peppol,
 // and `sources=2` returns the unfiltered baseline), and the state filter is
 // `providerInvoiceStates` (`states` is ignored).

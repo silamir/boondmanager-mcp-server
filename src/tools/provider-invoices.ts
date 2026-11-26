@@ -40,22 +40,26 @@ const SOURCE_LABELS: Readonly<Record<number, string>> = { 0: "manuelle", 1: "él
  * resource). The default summary only showed the state id and the reference.
  */
 export function providerInvoiceSummary(item: JsonApiResource): string {
-  const a = item.attributes ?? {};
-  const rel = (item.relationships ?? {}) as Record<string, { data?: { id?: string } | null } | undefined>;
-  const resourceId = rel["resource"]?.data?.id;
+  const a = (item.attributes ?? {});
+  const rel = item.relationships as Record<string, { data?: { id?: string } | null } | undefined> | undefined;
+  // In list rows (verified live) an invoice without resource has no `resource`
+  // key at all, while one with a resource carries it; `data: null` is the
+  // detail form. Without any relationships block we cannot tell, so say nothing.
+  const resourceId = rel?.["resource"]?.data?.id;
+  const resourceLabel = resourceId ? `Ressource: #${resourceId}` : rel ? "Sans ressource" : undefined;
   const source = typeof a["source"] === "number" ? (SOURCE_LABELS[a["source"]] ?? `source ${a["source"]}`) : undefined;
+  const ht = a["amountExcludingTax"] ?? undefined;
+  const ttc = a["amountIncludingTax"] ?? undefined;
   const amounts =
-    a["amountExcludingTax"] !== undefined || a["amountIncludingTax"] !== undefined
-      ? `${String(a["amountExcludingTax"] ?? "?")} HT / ${String(a["amountIncludingTax"] ?? "?")} TTC`
-      : undefined;
+    ht !== undefined || ttc !== undefined ? `${String(ht ?? "?")} HT / ${String(ttc ?? "?")} TTC` : undefined;
   const parts = [
     `[providerinvoice #${item.id}]`,
-    a["reference"] !== undefined ? `Réf: ${String(a["reference"])}` : undefined,
+    a["reference"] !== undefined && a["reference"] !== null ? `Réf: ${String(a["reference"])}` : undefined,
     a["invoiceDate"] ? `Date: ${String(a["invoiceDate"])}` : undefined,
     amounts,
-    a["state"] !== undefined ? `Statut: ${String(a["state"])}` : undefined,
+    a["state"] !== undefined && a["state"] !== null ? `Statut: ${String(a["state"])}` : undefined,
     source ? `Source: ${source}` : undefined,
-    resourceId ? `Ressource: #${resourceId}` : "Sans ressource",
+    resourceLabel,
   ];
   return parts.filter((p): p is string => p !== undefined).join(" | ");
 }

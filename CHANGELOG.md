@@ -7,7 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
-- `boond_provider_invoices_search` : nouveaux filtres `providerInvoiceStates`, `sources`, `withoutResource`, `period` (`invoiceDate` / `invoicePeriod`), `startDate` / `endDate`, `periodDynamic`, tri, vérifiés sur l'API réelle le 26/11/2026. La doc RAML se trompe sur deux points : `sources` vaut 0 = saisie manuelle / 1 = facture électronique (elle annonce 1 / 2, et `sources=2` renvoie tout), et l'état se filtre par `providerInvoiceStates` (`states` est ignoré). Le résumé de liste affiche maintenant la date, les montants HT / TTC, l'origine et la ressource (ou « Sans ressource »), au lieu du seul statut et de la référence.
+- `boond_provider_invoices_search` : nouveaux filtres `providerInvoiceStates`, `sources`, `withoutResource`, `period` (`invoiceDate` / `invoicePeriod`) avec `startDate` / `endDate`, `periodDynamic` et tri `sort` / `order`, chacun vérifié sur l'API réelle le 26/11/2026 (total de lignes avec et sans le filtre). La doc RAML se trompe sur deux points : `sources` vaut 0 = saisie manuelle / 1 = facture électronique (elle annonce 1 / 2, et `sources=2` renvoie tout), et l'état se filtre par `providerInvoiceStates` (`states` est ignoré). Le résumé de liste affiche maintenant la date, les montants HT / TTC, l'origine et la ressource (ou « Sans ressource », une facture sans ressource n'ayant pas de clé `resource` dans la liste), au lieu du seul statut et de la référence.
 
 ### Changed
 

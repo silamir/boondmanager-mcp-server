@@ -188,3 +188,35 @@ describe("providerInvoiceSummary", () => {
     ).toBe("[providerinvoice #130] | Réf: F-2026-11-010 | Source: manuelle | Ressource: #140");
   });
 });
+
+describe("providerInvoiceSummary resource label", () => {
+  it("says 'Sans ressource' when the row has relationships but no resource key (list form)", async () => {
+    const { providerInvoiceSummary } = await import("./provider-invoices.js");
+    expect(
+      providerInvoiceSummary({
+        id: "144",
+        type: "providerinvoice",
+        attributes: { reference: "F-2026-110" },
+        relationships: { agency: { data: { id: "1", type: "agency" } } },
+      } as never)
+    ).toBe("[providerinvoice #144] | Réf: F-2026-110 | Sans ressource");
+  });
+
+  it("says nothing about the resource when the row has no relationships block", async () => {
+    const { providerInvoiceSummary } = await import("./provider-invoices.js");
+    expect(providerInvoiceSummary({ id: "1", type: "providerinvoice", attributes: { reference: "X" } } as never)).toBe(
+      "[providerinvoice #1] | Réf: X"
+    );
+  });
+
+  it("never prints 'null' for a null amount", async () => {
+    const { providerInvoiceSummary } = await import("./provider-invoices.js");
+    expect(
+      providerInvoiceSummary({
+        id: "2",
+        type: "providerinvoice",
+        attributes: { amountExcludingTax: null, amountIncludingTax: 120 },
+      } as never)
+    ).toBe("[providerinvoice #2] | ? HT / 120 TTC");
+  });
+});

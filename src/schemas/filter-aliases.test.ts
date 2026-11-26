@@ -161,3 +161,22 @@ describe("unknownFilterMessage", () => {
     expect(msg.length).toBeLessThan(600);
   });
 });
+
+describe("provider invoices (filters verified live 2026-11-26)", () => {
+  it("redirects the names the model reaches for to the filters /provider-invoices applies", () => {
+    expect(resolveFilterAlias("states", "provider-invoices")?.correct).toBe("providerInvoiceStates");
+    expect(resolveFilterAlias("states", "provider-invoices")?.hint).toContain("ignoré");
+    expect(resolveFilterAlias("source", "provider-invoices")?.correct).toBe("sources");
+    expect(resolveFilterAlias("peppol", "provider-invoices")?.correct).toBe("sources");
+    expect(resolveFilterAlias("einvoice", "provider-invoices")?.correct).toBe("sources");
+    expect(resolveFilterAlias("unassigned", "provider-invoices")?.correct).toBe("withoutResource");
+  });
+
+  it("only points at filters the provider invoice search schema really accepts", async () => {
+    const { ProviderInvoiceSearchSchema } = await import("./index.js");
+    const accepted = Object.keys(ProviderInvoiceSearchSchema.shape);
+    for (const alias of Object.values(ENDPOINT_FILTER_ALIASES["provider-invoices"])) {
+      if (alias.correct !== undefined) expect(accepted).toContain(alias.correct);
+    }
+  });
+});
