@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.19.4] - 2026-11-26
+
+Version corrective : les lignes des CRA créés ou modifiés par `boond_timesheets_create` / `boond_timesheets_update` sont désormais conservées par BoondManager, et `boond_provider_invoices_search` expose les filtres que l'API applique réellement. Mises à jour de dépendances. Aucun nom d'outil ne change. Catalogue : 238 outils.
+
 ### Fixed
 
 - `boond_provider_invoices_search` : nouveaux filtres `providerInvoiceStates`, `sources`, `withoutResource`, `period` (`invoiceDate` / `invoicePeriod`) avec `startDate` / `endDate`, `periodDynamic` et tri `sort` / `order`, chacun vérifié sur l'API réelle le 26/11/2026 (total de lignes avec et sans le filtre). La doc RAML se trompe sur deux points : `sources` vaut 0 = saisie manuelle / 1 = facture électronique (elle annonce 1 / 2, et `sources=2` renvoie tout), et l'état se filtre par `providerInvoiceStates` (`states` est ignoré). Le résumé de liste affiche maintenant la date, les montants HT / TTC, l'origine et la ressource (ou « Sans ressource », une facture sans ressource n'ayant pas de clé `resource` dans la liste), au lieu du seul statut et de la référence.
@@ -13,6 +17,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - Configuration Claude Code du dépôt alignée sur les bonnes pratiques officielles (https://code.claude.com/docs/fr/best-practices). `CLAUDE.md` passe de 1958 à ~110 lignes : il ne garde que les commandes, la définition de « terminé » et les pièges transverses ; les notes de conception sont déplacées telles quelles dans `.claude/rules/*.md`, chargées seulement quand on touche les fichiers concernés (`paths:`), et l'arborescence annotée dans `docs/architecture.md`. Ajouts : skills `/release` (procédure à jour avec les rulesets de `main`) et `add-tool`, sous-agent `reviewer` en lecture seule, `.claude/settings.json` (lecture de `.env` refusée, hook bloquant `git add -A` et l'édition des fichiers générés, Prettier après chaque édition de `src/`, hook `Stop` qui exige un `tsc` vert quand `src/` a changé), `.worktreeinclude` et `CLAUDE.local.md` ignoré par git. Aucun changement du serveur.
+- Dépendances : `unpdf` 2.1.0 → 2.2.1, image de base Docker `node:24-alpine` rafraîchie, et les groupes de dépendances de développement (`eslint` 10.15.0, `typescript-eslint` 8.73.0, `vitest` 5.1.1) et de GitHub Actions (`qlty-action/coverage` 2.8.0).
 
 ## [2.19.3] - 2026-11-14
 
