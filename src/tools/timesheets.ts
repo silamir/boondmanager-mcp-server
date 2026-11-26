@@ -251,7 +251,7 @@ export function registerTimesheetTools(server: McpServer): void {
       behaviour: [
         "Un CRA est un conteneur mensuel (`term` + `resource`) ; les lignes vont dans `regularTimes[]` (production et absences) et `exceptionalTimes[]` — chaque ligne = un jour, une durée, un type d'unité d'œuvre, et pour la production un couple `projectId` / `deliveryId` imputable.",
         "`state` n'est pas un champ d'écriture : il est piloté par le workflow de validation (`boond_validations_search`).",
-        "Écriture non idempotente. Modèle d'écriture établi en lecture depuis l'API (forme des CRA existants et de `/times-reports/default`), pas encore éprouvé en écriture sur un tenant de test — voir CLAUDE.md.",
+        "Écriture non idempotente. Vérifié en écriture le 26/11/2026 : chaque ligne doit porter un `row` (numéroté automatiquement par combinaison type / projet / prestation / lot), sinon l'API répond OK et ignore les lignes ; une journée partagée = deux lignes de 0,5 à la même date.",
       ],
       returns: "confirmation, ID créé (`structuredContent.id`) et fiche du CRA.",
     }),
