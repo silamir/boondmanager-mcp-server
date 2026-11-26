@@ -163,3 +163,21 @@ write against a test tenant should confirm the verb (a 405 means
 `informationComments` on contracts and purchases — `models.contract` /
 `models.purchase` have no `note`, so the create tools were sending an
 attribute the API ignored.
+
+**Order correlations (`deliveriesPurchases`)**: the deliveries and purchases
+ticked in the UI's "Prestations / Achats corrélés" block. `GET /orders/{id}`
+does not carry them (its RAML relationships are `project` and `mainManager`
+only); `GET /orders/{id}/information` does, as
+`relationships.deliveriesPurchases.data = [{ id, type: "delivery" | "purchase" }]`,
+with every delivery and purchase of the project in `included` (the checkbox
+list) and their resources for the names. Read verified on a production
+tenant (2026-11-26). `boond_orders_get` therefore makes a second call to
+`/information` and renders the section (`formatCorrelatedDeliveriesPurchases`).
+Writes: `relationships.deliveriesPurchases` on `POST /orders` and
+`PUT /orders/{id}/information` (RAML `orders/bodyPost.json`,
+`orders/informationBodyPut.json`, `uniqueItems`), sent by `buildOrderBody`
+with duplicates dropped. **Not exercised**: whether the array replaces the
+existing list (assumed, like every JSON:API to-many relationship and like
+`actualExpenses`), whether an empty array un-correlates everything, and which
+422 an item from another project returns. Confirm on a sandbox and fix this
+paragraph.

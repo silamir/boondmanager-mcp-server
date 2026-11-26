@@ -213,7 +213,8 @@ export function defaultGetDescription(opts: EntityWording & { withTab: boolean }
   });
 }
 
-export function defaultCreateDescription(opts: EntityWording): string {
+/** `extraBehaviour`: domain-specific behaviour lines, placed before `Returns`. */
+export function defaultCreateDescription(opts: EntityWording, extraBehaviour: string[] = []): string {
   return composeDescription({
     purpose: `Crée un(e) ${opts.entityName} dans BoondManager.`,
     when: `pour ajouter un(e) ${opts.entityName} inexistant(e).`,
@@ -221,12 +222,14 @@ export function defaultCreateDescription(opts: EntityWording): string {
     behaviour: [
       "Écriture réelle et non idempotente : deux appels identiques créent deux enregistrements (l'API ne déduplique pas).",
       "Les ID de relations et les états/types sont des ID numériques BoondManager, à résoudre au préalable (recherches d'entités, `boond://dictionary/*`).",
+      ...extraBehaviour,
     ],
     returns: `confirmation, ID créé, et la fiche complète. \`structuredContent.id\` est réutilisable directement pour chaîner un appel.`,
   });
 }
 
-export function defaultUpdateDescription(opts: EntityWording): string {
+/** `extraBehaviour`: domain-specific behaviour lines, placed before `Returns`. */
+export function defaultUpdateDescription(opts: EntityWording, extraBehaviour: string[] = []): string {
   return composeDescription({
     purpose: `Met à jour un(e) ${opts.entityName} existant(e), identifié(e) par son ID.`,
     when: `pour modifier quelques champs d'un enregistrement déjà en base.`,
@@ -235,6 +238,7 @@ export function defaultUpdateDescription(opts: EntityWording): string {
       "Mise à jour partielle : seuls les champs fournis sont écrits, les autres sont laissés en place.",
       "Attention aux champs de type tableau, qui sont **remplacés** et non fusionnés.",
       ...rightsHint(opts.prefix),
+      ...extraBehaviour,
     ],
     returns: `confirmation et fiche mise à jour.`,
   });

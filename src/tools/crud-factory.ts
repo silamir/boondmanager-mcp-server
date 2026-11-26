@@ -323,6 +323,12 @@ interface GetToolOverrides {
   withTab?: boolean;
   title?: string;
   description?: string;
+  /**
+   * Extra section appended after the record, read from another route (e.g. the
+   * correlations an entity only publishes on its `/information` tab). Returns
+   * `undefined` to append nothing.
+   */
+  appendSection?: (id: string) => Promise<string | undefined>;
 }
 
 export function registerGetTool(server: McpServer, opts: CrudToolOptions, overrides: GetToolOverrides = {}): void {
@@ -348,8 +354,9 @@ export function registerGetTool(server: McpServer, opts: CrudToolOptions, overri
       const path = tab ? `${opts.apiPath}/${params.id}/${tab}` : `${opts.apiPath}/${params.id}`;
       const response = await apiRequest(path);
       const text = formatDetailResponse(response);
+      const extra = !tab && overrides.appendSection ? await overrides.appendSection(params.id) : undefined;
       return {
-        content: [{ type: "text" as const, text }],
+        content: [{ type: "text" as const, text: extra ? `${text}\n\n${extra}` : text }],
       };
     }
   );
