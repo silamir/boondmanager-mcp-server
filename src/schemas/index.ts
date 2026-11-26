@@ -1370,7 +1370,7 @@ const orderDeliveriesPurchasesField = z
   )
   .optional()
   .describe(
-    "Prestations / achats corrélés au bon de commande. Remplace TOUTE la liste existante : relire `boond_orders_get`, fusionner, renvoyer la liste complète ; `[]` décorrèle tout."
+    "Prestations / achats corrélés au bon de commande. Supposé remplacer toute la liste existante (non vérifié) : relire `boond_orders_get`, fusionner, renvoyer la liste complète."
   );
 
 export const OrderCreateSchema = z

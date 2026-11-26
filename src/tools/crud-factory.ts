@@ -352,9 +352,12 @@ export function registerGetTool(server: McpServer, opts: CrudToolOptions, overri
     async (params: IdTabInput | IdInput) => {
       const tab = withTab ? (params as IdTabInput).tab : undefined;
       const path = tab ? `${opts.apiPath}/${params.id}/${tab}` : `${opts.apiPath}/${params.id}`;
-      const response = await apiRequest(path);
+      // The extra section (another route) is read in parallel, and never on a tab read.
+      const [response, extra] = await Promise.all([
+        apiRequest(path),
+        !tab && overrides.appendSection ? overrides.appendSection(params.id) : Promise.resolve(undefined),
+      ]);
       const text = formatDetailResponse(response);
-      const extra = !tab && overrides.appendSection ? await overrides.appendSection(params.id) : undefined;
       return {
         content: [{ type: "text" as const, text: extra ? `${text}\n\n${extra}` : text }],
       };

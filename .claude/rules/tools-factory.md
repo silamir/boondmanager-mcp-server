@@ -32,6 +32,14 @@ schemas to `src/schemas/index.ts`, keep its hand-written descriptions as
 `overrides.description` where they carry endpoint vocabulary, and remove its
 row from `fields-projection.test.ts` (the factory forwards `fields` centrally).
 
+**`GetToolOverrides.appendSection`**: a `_get` can append a section read from
+another route, for data an entity only publishes there (orders: the correlated
+deliveries / purchases, on `/orders/{id}/information`). The extra read runs in
+parallel with the record, never on a `tab` read, and the hook turns its own
+failure into text so the record is still returned. Disclose the extra call in
+the get description, and bound the section: it is appended after
+`CHARACTER_LIMIT` has been applied to the record.
+
 **Tab tools** (`src/tools/tab-tools.ts`): Major entities (candidates, resources,
 contacts, companies, opportunities, projects — and, since issue #258, invoices,
 orders and purchases) register one extra tool per tab endpoint — 48 in total.

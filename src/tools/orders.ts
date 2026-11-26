@@ -126,6 +126,9 @@ function describeDeliveryPurchase(item: JsonApiResource, resources: Map<string, 
   return `delivery #${item.id} : ${label}${title ? ` (${title})` : ""}`;
 }
 
+/** Bounds the candidate list: this text is appended after `CHARACTER_LIMIT` has been applied to the record. */
+const MAX_LISTED_CANDIDATES = 40;
+
 function overlaps(item: JsonApiResource, start?: string, end?: string): boolean {
   const a = item.attributes ?? {};
   const itemStart = text(a["startDate"]);
@@ -160,10 +163,14 @@ export function formatCorrelatedDeliveriesPurchases(info: JsonApiResponse): stri
   const end = text(order?.attributes?.["endDate"]);
   const others = candidates.filter((i) => !tickedKeys.has(`${i.type}:${i.id}`));
   const inPeriod = others.filter((i) => overlaps(i, start, end));
+  const shown = inPeriod.slice(0, MAX_LISTED_CANDIDATES);
   const window = start && end ? ` dont la période recoupe celle de la commande (${start} → ${end})` : "";
   lines.push("", `Autres prestations / achats du projet, non corrélés${window} :`);
-  if (inPeriod.length === 0) lines.push("- aucun");
-  for (const item of inPeriod) lines.push(`- ${describeDeliveryPurchase(item, resources)}`);
+  if (shown.length === 0) lines.push("- aucun");
+  for (const item of shown) lines.push(`- ${describeDeliveryPurchase(item, resources)}`);
+  if (inPeriod.length > shown.length) {
+    lines.push(`(${inPeriod.length - shown.length} autre(s) non listé(s) : voir \`boond_orders_information\`)`);
+  }
   const hidden = others.length - inPeriod.length;
   if (hidden > 0) lines.push(`(${hidden} autre(s) hors de la période de la commande, non listé(s))`);
   return lines.join("\n");
@@ -179,8 +186,8 @@ async function correlatedSection(id: string): Promise<string> {
 }
 
 const DELIVERIES_PURCHASES_WRITE = [
-  '`deliveriesPurchases` (prestations / achats corrélés, `{ type: "delivery" | "purchase", id }`) **remplace toute la liste** : relire d\'abord avec `boond_orders_get` (section « Prestations / achats corrélés »), fusionner, puis renvoyer la liste complète. `[]` décorrèle tout ; omettre le champ laisse la liste en place.',
-  "Écriture de `deliveriesPurchases` non vérifiée : nom et forme tirés de la doc RAML (`relationships.deliveriesPurchases`), jamais exercés sur un bac à sable.",
+  '`deliveriesPurchases` (prestations / achats corrélés, `{ type: "delivery" | "purchase", id }`) est **supposé remplacer toute la liste**, comme toute relation JSON:API multiple : relire d\'abord avec `boond_orders_get` (section « Prestations / achats corrélés »), fusionner, puis renvoyer la liste complète. Omettre le champ n\'envoie rien.',
+  "Écriture de `deliveriesPurchases` **non vérifiée** : nom et forme tirés de la doc RAML (`relationships.deliveriesPurchases`), jamais exercés sur un bac à sable ; le remplacement de la liste et l'effet de `[]` (décorréler tout ?) sont des suppositions. Relire la commande après écriture.",
 ];
 
 function normalizeSchedules(schedules?: Array<Record<string, unknown>>): Array<Record<string, unknown>> | undefined {

@@ -175,54 +175,50 @@ describe("order body branches (#245)", () => {
   });
 });
 
-// Shape of GET /orders/{id}/information observed on a production read (2026-11-26):
-// `relationships.deliveriesPurchases` = the ticked items, `included` = every
-// delivery / purchase of the project plus their resources.
+// Made-up data in the SHAPE of GET /orders/{id}/information as read on a real
+// tenant (2026-11-26): `relationships.deliveriesPurchases` = the ticked items,
+// `included` = every delivery / purchase of the project plus their resources.
+// That read only had deliveries ticked; the ticked purchase here is illustrative.
 const INFORMATION = {
   data: {
-    id: "249",
+    id: "1",
     type: "order",
     attributes: { startDate: "2026-10-01", endDate: "2026-12-31" },
     relationships: {
       deliveriesPurchases: {
         data: [
-          { id: "362", type: "delivery" },
-          { id: "198", type: "purchase" },
+          { id: "11", type: "delivery" },
+          { id: "21", type: "purchase" },
         ],
       },
     },
   },
   included: [
     {
-      id: "362",
+      id: "11",
       type: "delivery",
-      attributes: { title: "KM Régie T4 26", startDate: "2026-10-01", endDate: "2026-12-31" },
-      relationships: { dependsOn: { data: { id: "125", type: "resource" } } },
+      attributes: { title: "Mission T4", startDate: "2026-10-01", endDate: "2026-12-31" },
+      relationships: { dependsOn: { data: { id: "31", type: "resource" } } },
     },
     {
-      id: "377",
+      id: "12",
       type: "delivery",
       attributes: { title: "", startDate: "2026-10-01", endDate: "2026-12-31" },
-      relationships: { dependsOn: { data: { id: "126", type: "resource" } } },
+      relationships: { dependsOn: { data: { id: "32", type: "resource" } } },
     },
     {
-      id: "158",
+      id: "13",
       type: "delivery",
       attributes: { title: "Ancienne", startDate: "2024-10-28", endDate: "2025-01-31" },
-      relationships: { dependsOn: { data: { id: "125", type: "resource" } } },
+      relationships: { dependsOn: { data: { id: "31", type: "resource" } } },
     },
     {
-      id: "198",
+      id: "21",
       type: "purchase",
-      attributes: {
-        reference: "ACH198",
-        title: "CLISSON Mélanie - MIS362",
-        startDate: "2026-10-01",
-        endDate: "2026-12-31",
-      },
+      attributes: { reference: "ACH21", title: "Sous-traitance T4", startDate: "2026-10-01", endDate: "2026-12-31" },
     },
-    { id: "125", type: "resource", attributes: { lastName: "CLISSON", firstName: "Mélanie" } },
-    { id: "126", type: "resource", attributes: { lastName: "BREDECHE", firstName: "Julie" } },
+    { id: "31", type: "resource", attributes: { lastName: "DUPONT", firstName: "Jeanne" } },
+    { id: "32", type: "resource", attributes: { lastName: "MARTIN", firstName: "Paul" } },
   ],
 };
 
@@ -242,10 +238,10 @@ describe("correlated deliveries / purchases (deliveriesPurchases)", () => {
   it("renders ticked items like the UI, then the other project items overlapping the order period", async () => {
     const { formatCorrelatedDeliveriesPurchases } = await import("./orders.js");
     const text = formatCorrelatedDeliveriesPurchases(INFORMATION as never);
-    expect(text).toContain("- delivery #362 : CLISSON Mélanie - 2026-10-01 - 2026-12-31 - MIS362 (KM Régie T4 26)");
-    expect(text).toContain("- purchase #198 : ACH198 - CLISSON Mélanie - MIS362 - 2026-10-01 - 2026-12-31");
-    expect(text).toContain("- delivery #377 : BREDECHE Julie - 2026-10-01 - 2026-12-31 - MIS377");
-    expect(text).not.toContain("#158");
+    expect(text).toContain("- delivery #11 : DUPONT Jeanne - 2026-10-01 - 2026-12-31 - MIS11 (Mission T4)");
+    expect(text).toContain("- purchase #21 : ACH21 - Sous-traitance T4 - 2026-10-01 - 2026-12-31");
+    expect(text).toContain("- delivery #12 : MARTIN Paul - 2026-10-01 - 2026-12-31 - MIS12");
+    expect(text).not.toContain("#13");
     expect(text).toContain("(1 autre(s) hors de la période de la commande, non listé(s))");
   });
 
@@ -269,56 +265,61 @@ describe("correlated deliveries / purchases (deliveriesPurchases)", () => {
   it("boond_orders_get reads the base record, then /information for the correlation section", async () => {
     vi.mocked(apiRequest).mockImplementation(((path: string) =>
       Promise.resolve(
-        path === "/orders/249/information" ? INFORMATION : { data: { id: "249", type: "order", attributes: {} } }
+        path === "/orders/1/information" ? INFORMATION : { data: { id: "1", type: "order", attributes: {} } }
       )) as never);
-    const result = (await handler("boond_orders_get")({ id: "249" })) as { content: { text: string }[] };
-    expect(vi.mocked(apiRequest).mock.calls.map((c) => c[0])).toEqual(["/orders/249", "/orders/249/information"]);
+    const result = (await handler("boond_orders_get")({ id: "1" })) as { content: { text: string }[] };
+    expect(
+      vi
+        .mocked(apiRequest)
+        .mock.calls.map((c) => c[0])
+        .sort()
+    ).toEqual(["/orders/1", "/orders/1/information"]);
     expect(result.content[0]?.text).toContain("Prestations / achats corrélés");
-    expect(result.content[0]?.text).toContain("MIS362");
+    expect(result.content[0]?.text).toContain("MIS11");
   });
 
   it("boond_orders_get still returns the record when /information fails", async () => {
     vi.mocked(apiRequest).mockImplementation(((path: string) =>
       path.endsWith("/information")
         ? Promise.reject(new Error("BoondManager API 403"))
-        : Promise.resolve({ data: { id: "249", type: "order", attributes: {} } })) as never);
-    const result = (await handler("boond_orders_get")({ id: "249" })) as { content: { text: string }[] };
-    expect(result.content[0]?.text).toContain("lecture de /orders/249/information impossible (BoondManager API 403)");
+        : Promise.resolve({ data: { id: "1", type: "order", attributes: {} } })) as never);
+    const result = (await handler("boond_orders_get")({ id: "1" })) as { content: { text: string }[] };
+    expect(result.content[0]?.text).toContain("lecture de /orders/1/information impossible (BoondManager API 403)");
   });
 
   it("update sends relationships.deliveriesPurchases on PUT /information, without duplicates", async () => {
     await handler("boond_orders_update")({
-      id: "253",
+      id: "2",
       deliveriesPurchases: [
-        { type: "delivery", id: "389" },
-        { type: "purchase", id: "198" },
-        { type: "delivery", id: "389" },
+        { type: "delivery", id: "11" },
+        { type: "purchase", id: "21" },
+        { type: "delivery", id: "11" },
       ],
     });
-    expect(vi.mocked(apiRequest).mock.calls[0]?.[0]).toBe("/orders/253/information");
+    expect(vi.mocked(apiRequest).mock.calls[0]?.[0]).toBe("/orders/2/information");
     expect(vi.mocked(apiRequest).mock.calls[0]?.[1]).toBe("PUT");
     expect(sentBody().data["relationships"]).toEqual({
       deliveriesPurchases: {
         data: [
-          { id: "389", type: "delivery" },
-          { id: "198", type: "purchase" },
+          { id: "11", type: "delivery" },
+          { id: "21", type: "purchase" },
         ],
       },
     });
   });
 
   it("an empty list un-correlates everything; omitting the field sends no relationship", async () => {
-    await handler("boond_orders_update")({ id: "253", deliveriesPurchases: [] });
+    await handler("boond_orders_update")({ id: "2", deliveriesPurchases: [] });
     expect(sentBody(0).data["relationships"]).toEqual({ deliveriesPurchases: { data: [] } });
-    await handler("boond_orders_update")({ id: "253", note: "x" });
+    await handler("boond_orders_update")({ id: "2", note: "x" });
     expect(sentBody(1).data["relationships"]).toBeUndefined();
   });
 
   it("create keeps the project relationship next to deliveriesPurchases", async () => {
-    await handler("boond_orders_create")({ projectId: "83", deliveriesPurchases: [{ type: "delivery", id: "362" }] });
+    await handler("boond_orders_create")({ projectId: "5", deliveriesPurchases: [{ type: "delivery", id: "11" }] });
     expect(sentBody().data["relationships"]).toEqual({
-      project: { data: { id: "83", type: "project" } },
-      deliveriesPurchases: { data: [{ id: "362", type: "delivery" }] },
+      project: { data: { id: "5", type: "project" } },
+      deliveriesPurchases: { data: [{ id: "11", type: "delivery" }] },
     });
   });
 
@@ -329,5 +330,22 @@ describe("correlated deliveries / purchases (deliveriesPurchases)", () => {
     expect(
       OrderUpdateSchema.safeParse({ id: "1", deliveriesPurchases: [{ type: "delivery", id: "MIS1" }] }).success
     ).toBe(false);
+  });
+});
+
+describe("correlated section size", () => {
+  it("lists at most 40 candidates and counts the rest", async () => {
+    const { formatCorrelatedDeliveriesPurchases } = await import("./orders.js");
+    const many = Array.from({ length: 45 }, (_, k) => ({
+      id: String(100 + k),
+      type: "delivery",
+      attributes: { title: `P${k}` },
+    }));
+    const out = formatCorrelatedDeliveriesPurchases({
+      data: { id: "1", type: "order", attributes: {}, relationships: { deliveriesPurchases: { data: [] } } },
+      included: many,
+    } as never);
+    expect(out.match(/^- delivery #/gm)?.length).toBe(40);
+    expect(out).toContain("(5 autre(s) non listé(s) : voir `boond_orders_information`)");
   });
 });
