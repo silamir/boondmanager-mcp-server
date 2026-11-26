@@ -35,13 +35,35 @@ export function buildTimeLine(line: TimesheetLineInput): Record<string, unknown>
   };
 }
 
+/**
+ * Number the lines of a CRA grid. The API silently drops any `regularTimes` /
+ * `exceptionalTimes` entry without a `row` (the request returns 200 and the
+ * report stays empty). A row is one line of the monthly grid, i.e. one
+ * (work unit type, project, delivery, batch) combination; any distinct integer
+ * per combination is accepted and the API replaces it with its own row id.
+ * Verified on `regularTimes`; `exceptionalTimes` is numbered the same way by
+ * analogy (each array from 1), not exercised yet.
+ */
+export function withRows(lines: Record<string, unknown>[]): Record<string, unknown>[] {
+  const rows = new Map<string, number>();
+  return lines.map((line) => {
+    const ref = (o: unknown) =>
+      (o as { id?: string; reference?: number } | null)?.id ?? (o as { reference?: number } | null)?.reference ?? "-";
+    const key = [ref(line.workUnitType), ref(line.project), ref(line.delivery), ref(line.batch)].join("|");
+    if (!rows.has(key)) rows.set(key, rows.size + 1);
+    return { ...line, row: rows.get(key) };
+  });
+}
+
 /** Build the `/times-reports` payload: convenience ids → relationships, lines → nested objects. */
 export function buildTimesheetBody(params: Record<string, unknown>): unknown {
   const { id, resourceId, agencyId, regularTimes, exceptionalTimes, ...attrs } = params;
   const attributes: Record<string, unknown> = { ...attrs };
-  if (regularTimes !== undefined) attributes.regularTimes = (regularTimes as TimesheetLineInput[]).map(buildTimeLine);
+  if (regularTimes !== undefined) {
+    attributes.regularTimes = withRows((regularTimes as TimesheetLineInput[]).map(buildTimeLine));
+  }
   if (exceptionalTimes !== undefined) {
-    attributes.exceptionalTimes = (exceptionalTimes as TimesheetLineInput[]).map(buildTimeLine);
+    attributes.exceptionalTimes = withRows((exceptionalTimes as TimesheetLineInput[]).map(buildTimeLine));
   }
   return buildJsonApiBody("timesreport", attributes, id as string | undefined, {
     resource: resourceId ? { id: String(resourceId), type: "resource" } : undefined,
@@ -230,7 +252,7 @@ export function registerTimesheetTools(server: McpServer): void {
       behaviour: [
         "Un CRA est un conteneur mensuel (`term` + `resource`) ; les lignes vont dans `regularTimes[]` (production et absences) et `exceptionalTimes[]` — chaque ligne = un jour, une durée, un type d'unité d'œuvre, et pour la production un couple `projectId` / `deliveryId` imputable.",
         "`state` n'est pas un champ d'écriture : il est piloté par le workflow de validation (`boond_validations_search`).",
-        "Écriture non idempotente. Modèle d'écriture établi en lecture depuis l'API (forme des CRA existants et de `/times-reports/default`), pas encore éprouvé en écriture sur un tenant de test — voir CLAUDE.md.",
+        "Écriture non idempotente. Vérifié en écriture le 26/11/2026 sur `regularTimes` : le serveur numérote lui-même le `row` de chaque ligne (ne pas le fournir), sans quoi l'API répond OK et ignore les lignes ; une journée partagée = deux lignes de 0,5 à la même date.",
       ],
       returns: "confirmation, ID créé (`structuredContent.id`) et fiche du CRA.",
     }),

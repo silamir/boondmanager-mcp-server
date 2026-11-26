@@ -60,10 +60,9 @@ Traps, each with a test:
   is nothing to add for them and nothing lost by omitting them.
 
 **Timesheets / CRA** (`src/tools/timesheets.ts`, issue #249): the same
-monthly-container model as expenses, established **from reads only** — this
-tenant is production, so unlike #179 the POST/PUT were *not* exercised; the
-first write against a test tenant should confirm the points marked *unverified*
-below and fix this section.
+monthly-container model as expenses, established from reads first and then
+confirmed by real writes on 2026-11-26 (see below); the points still marked
+unknown should be fixed here when a write settles them.
 
 - **Verified (read, 2026-09-25)**: `GET /times-reports/{id}` returns `term`,
   `informationComments`, `closed`, `state` (a workflow *string*: `validated`,
@@ -79,14 +78,23 @@ below and fix this section.
   codes (`1` Normale/production, `4` RTT, `5` Maladie, `9` Intervention…),
   which `/application/dictionary` and `/agencies/{id}` do not publish. This is
   why `boond_timesheets_default` exists and renders that resource attribute.
-- **Unverified (write)**: whether an absent `project` / `delivery` / `batch`
-  must be `null` (what the API echoes — what `buildTimeLine` sends) or
-  `{ id: null }` (what `/expenses-reports` demanded for `batch`); whether
-  `agency` is required on POST; the 422 "waves" of required fields. `state` is
-  kept out of both schemas on the strength of the expenses finding (same
-  validation workflow — `boond_validations_search` covers `timesReport`), and
-  `regularTimes` / `exceptionalTimes` on PUT are documented as replacing the
-  whole array by analogy with `actualExpenses`.
+- **Verified on write (2026-11-26, production)**: a direct `PUT
+  /times-reports/{id}` first, then two monthly reports created through
+  `boond_timesheets_create` (20 and 21 lines). Every `regularTimes` line needs
+  a `row`: the grid line, one per (work unit type, project, delivery, batch).
+  Without it the API answers 200 and drops every line, on POST and on PUT: the
+  report stays empty. `withRows()` numbers them (any distinct integer, the API
+  replaces it with its own row id). An absence line with `project` /
+  `delivery` / `batch` sent as `null` is accepted. A half day split between
+  production and absence is two lines of `0.5` on the same date, which end up
+  on two rows. Created reports read back as `savedAndNoValidation`.
+- **Still unverified**: `exceptionalTimes` (numbered the same way by analogy,
+  never sent); whether `agency` is required on POST (`agencyId` was always
+  sent); the 422 "waves" of required fields; `regularTimes` /
+  `exceptionalTimes` on PUT replacing the whole array (documented by analogy
+  with `actualExpenses`, the only PUT exercised targeted an empty report).
+  `state` is kept out of both schemas on the strength of the expenses finding
+  (same validation workflow, `boond_validations_search` covers `timesReport`).
 - The previous `boond_timesheets_create` sent `totalDays`, `totalHours`,
   `state`, `note` at report level — line vocabulary in a report slot, none of
   it in `models.timesreport`; it had never created anything.
