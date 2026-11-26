@@ -2052,6 +2052,9 @@ export const ProviderInvoiceCreateSchema = z
 export const ProviderInvoiceUpdateSchema = z
   .object({
     id: EntityIdSchema.describe("ID de la facture fournisseur à modifier"),
+    resourceId: EntityIdSchema.optional().describe(
+      "ID de la ressource à rattacher (relation `resource`), ex. une facture électronique reçue sans ressource"
+    ),
     reference: z.string().optional().describe("Référence de la facture fournisseur"),
     invoiceDate: z.string().optional().describe("Date de facture (YYYY-MM-DD)"),
     startDate: z.string().optional().describe("Date de début de période (YYYY-MM-DD)"),
@@ -2066,7 +2069,8 @@ export const ProviderInvoiceUpdateSchema = z
     ),
     // RAML providerInvoices/bodyPut.json: providerCompany / providerContact, each
     // nullable, and "if defined then provider's contact / company have to be set":
-    // one object holding both, or null to clear both. The documented PUT has no `resource`.
+    // one object holding both, or null to clear both. `resourceId` is not in the RAML
+    // bodyPut.json but the API applies it (changed and restored live, 2026-11-26).
     provider: z
       .object({
         companyId: EntityIdSchema.describe("ID de la société fournisseur (providerCompany)"),

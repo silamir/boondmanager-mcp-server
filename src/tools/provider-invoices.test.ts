@@ -256,11 +256,38 @@ describe("boond_provider_invoices_update provider relationships (RAML providerIn
     });
   });
 
-  it("rejects a company without its contact, and exposes no resource", async () => {
+  it("rejects a company without its contact, and accepts a numeric resourceId", async () => {
     const { ProviderInvoiceUpdateSchema } = await import("../schemas/index.js");
     expect(ProviderInvoiceUpdateSchema.safeParse({ id: "12", provider: { companyId: "7" } }).success).toBe(false);
-    expect(ProviderInvoiceUpdateSchema.safeParse({ id: "12", resourceId: "9" }).success).toBe(false);
+    expect(ProviderInvoiceUpdateSchema.safeParse({ id: "12", resourceId: "9" }).success).toBe(true);
+    expect(ProviderInvoiceUpdateSchema.safeParse({ id: "12", resourceId: "9/x" }).success).toBe(false);
     expect(ProviderInvoiceUpdateSchema.safeParse({ id: "12", provider: null }).success).toBe(true);
+  });
+
+  it("sends resourceId as the `resource` relationship, alone or with the provider", async () => {
+    const { buildProviderInvoiceUpdateBody } = await import("./provider-invoices.js");
+    expect(buildProviderInvoiceUpdateBody({ id: "12", resourceId: "42" })).toEqual({
+      data: {
+        type: "providerinvoice",
+        id: "12",
+        attributes: {},
+        relationships: { resource: { data: { id: "42", type: "resource" } } },
+      },
+    });
+    expect(
+      buildProviderInvoiceUpdateBody({ id: "12", resourceId: "42", provider: { companyId: "7", contactId: "8" } })
+    ).toEqual({
+      data: {
+        type: "providerinvoice",
+        id: "12",
+        attributes: {},
+        relationships: {
+          resource: { data: { id: "42", type: "resource" } },
+          providerCompany: { data: { id: "7", type: "company" } },
+          providerContact: { data: { id: "8", type: "contact" } },
+        },
+      },
+    });
   });
 });
 
@@ -282,6 +309,15 @@ describe("boond_provider_invoices_update handler with provider", () => {
           providerCompany: { data: { id: "7", type: "company" } },
           providerContact: { data: { id: "8", type: "contact" } },
         },
+      },
+    });
+    await update({ id: "12", resourceId: "42" });
+    expect(apiRequest).toHaveBeenLastCalledWith("/provider-invoices/12", "PUT", {
+      data: {
+        type: "providerinvoice",
+        id: "12",
+        attributes: {},
+        relationships: { resource: { data: { id: "42", type: "resource" } } },
       },
     });
     await update({ id: "12", provider: null });

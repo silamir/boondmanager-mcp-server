@@ -35,21 +35,26 @@ export function buildProviderInvoiceBody(params: Record<string, unknown>): unkno
 /**
  * `PUT /provider-invoices/{id}` payload. `provider` sets `providerCompany` and
  * `providerContact` together (the RAML requires both once one is set) or, as
- * `null`, clears both. The documented PUT has no `resource` relationship.
+ * `null`, clears both. `resourceId` sets `resource`: absent from the RAML
+ * `bodyPut.json`, but applied by the API (changed and restored live, 2026-11-26).
  */
 export function buildProviderInvoiceUpdateBody(params: Record<string, unknown>): unknown {
-  const { id, provider, ...attrs } = params;
+  const { id, provider, resourceId, ...attrs } = params;
   const p = provider as { companyId: string; contactId: string } | null | undefined;
+  const relationships = {
+    ...(resourceId ? { resource: { id: String(resourceId), type: "resource" } } : {}),
+    ...(p === undefined
+      ? {}
+      : {
+          providerCompany: p === null ? null : { id: String(p.companyId), type: "company" },
+          providerContact: p === null ? null : { id: String(p.contactId), type: "contact" },
+        }),
+  };
   return buildJsonApiBody(
     "providerinvoice",
     attrs,
     String(id),
-    p === undefined
-      ? undefined
-      : {
-          providerCompany: p === null ? null : { id: String(p.companyId), type: "company" },
-          providerContact: p === null ? null : { id: String(p.contactId), type: "contact" },
-        }
+    Object.keys(relationships).length > 0 ? relationships : undefined
   );
 }
 
@@ -107,7 +112,7 @@ export function registerProviderInvoiceTools(server: McpServer): void {
     summaryFn: providerInvoiceSummary,
     description: composeDescription({
       purpose: "Liste et recherche les factures fournisseur (factures reçues des prestataires).",
-      when: "pour suivre les factures d'achat, par fournisseur, état, origine (saisie manuelle / facture électronique reçue) ou période ; `withoutResource: true` + `sources: [1]` = factures électroniques arrivées sans ressource, à traiter.",
+      when: "pour suivre les factures d'achat, par fournisseur, état, origine (saisie manuelle / facture électronique reçue) ou période ; `withoutResource: true` + `sources: [1]` = factures électroniques arrivées sans ressource, à rattacher avec `boond_provider_invoices_update` (`resourceId`).",
       instead:
         "`boond_invoices_search` pour les factures de vente adressées aux clients — sens opposé, endpoint distinct.",
       returns:
@@ -123,13 +128,12 @@ export function registerProviderInvoiceTools(server: McpServer): void {
     title: "Modifier une facture fournisseur",
     description: composeDescription({
       purpose:
-        "Modifie une facture fournisseur : dates, montants, état, ou la société et le contact fournisseur (`provider`).",
-      when: "pour marquer une facture payée (`paidDate`, `state`), corriger une période ou un montant, ou rattacher / détacher le fournisseur.",
+        "Modifie une facture fournisseur : dates, montants, état, ressource (`resourceId`), ou la société et le contact fournisseur (`provider`).",
+      when: "pour marquer une facture payée (`paidDate`, `state`), corriger une période ou un montant, rattacher une facture électronique reçue sans ressource (`resourceId`), ou rattacher / détacher le fournisseur.",
       instead: "`boond_provider_invoices_create` pour enregistrer une nouvelle facture.",
       behaviour: [
-        "`PUT /provider-invoices/{id}` : écriture non vérifiée sur un environnement de test.",
+        "`PUT /provider-invoices/{id}` vérifié sur une instance réelle avec `resourceId` (ressource changée puis remise, autres champs intacts) ; `provider` non vérifié.",
         "`provider` envoie `providerCompany` et `providerContact` ensemble (la doc de l'API les exige ensemble) ; `provider: null` retire les deux.",
-        "La ressource d'une facture ne peut pas être changée ici : la doc de l'API ne prévoit pas de relation `resource` sur la modification, seulement à la création.",
       ],
       returns: "confirmation et fiche de la facture fournisseur modifiée.",
     }),

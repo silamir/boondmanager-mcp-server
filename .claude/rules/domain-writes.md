@@ -154,10 +154,11 @@ factory. Routes: `PUT /purchases/{id}/information` is documented
 (`purchases/information.raml`); contracts, deliveries, payments and provider
 invoices have **no** `information.raml` on the doc site (404, checked
 2026-09-26), so they PUT the base resource — the pattern `/actions/{id}` and
-`/times-reports/{id}` follow. **None of these five write paths has been
-exercised** (production tenant): the schemas are attribute-only
+`/times-reports/{id}` follow. **Four of these five write paths have not been
+exercised** (provider invoices: `PUT` on the base resource confirmed
+2026-11-26 with `resourceId`, see below): the schemas are attribute-only
 (`models.<entity>` in the dictionary), never move a relationship (except the
-provider-invoice `provider`, below), and their
+provider-invoice `provider` and `resourceId`, below), and their
 `state` is `stateField` (rows in `state-writability.test.ts`). The first
 write against a test tenant should confirm the verb (a 405 means
 `/information` is expected) and fix this paragraph. `note` maps to
@@ -170,12 +171,14 @@ attribute the API ignored.
 `providerContact` on `PUT /provider-invoices/{id}`, each nullable, each
 "have to be set" once the other is — hence the update schema's single
 `provider: { companyId, contactId } | null`. It documents **no `resource`**
-(only `bodyPost.json` and the read `profile.json` carry it), so the resource of
-an invoice (an e-invoice received without one) cannot be set through the
-public API as documented; the update description says so. Not exercised: the
-`provider` write, and whether an undocumented `relationships.resource` on PUT
-is applied or silently ignored — try both on a sandbox, then fix this
-paragraph. List rows (60 read live, 2026-11-26) carry `vatNumber` (set on 10,
+(only `bodyPost.json` and the read `profile.json` carry it), yet the API
+applies an undocumented `relationships.resource` on PUT: exercised on a
+production tenant (2026-11-26) by moving an invoice from one resource to
+another and back, each change visible on re-read, other attributes intact.
+That is `resourceId` on the update tool, the way to attach an e-invoice
+received without a resource. This also confirms the verb and route (`PUT`
+on the base resource, not `/information`) for provider invoices. Still not
+exercised: the `provider` write. List rows (60 read live, 2026-11-26) carry `vatNumber` (set on 10,
 four distinct values, none the tenant's own: the supplier's) and, when set,
 `resource`; none carried `providerCompany`, which is why the search
 summary shows the VAT number and not the supplier's name.

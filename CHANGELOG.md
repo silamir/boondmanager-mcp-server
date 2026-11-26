@@ -7,7 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- **`boond_provider_invoices_update` rattache ou détache le fournisseur** : nouveau champ `provider: { companyId, contactId }` envoyé en `relationships.providerCompany` / `providerContact` (la doc de l'API, `providerInvoices/bodyPut.json`, exige les deux ensemble), et `provider: null` pour retirer les deux. Écriture non vérifiée sur un environnement de test. La ressource, elle, ne peut toujours pas être changée : la doc ne prévoit pas de relation `resource` sur `PUT /provider-invoices/{id}`, seulement à la création ; la description de l'outil le dit.
+- **`boond_provider_invoices_update` rattache ou détache le fournisseur** : nouveau champ `provider: { companyId, contactId }` envoyé en `relationships.providerCompany` / `providerContact` (la doc de l'API, `providerInvoices/bodyPut.json`, exige les deux ensemble), et `provider: null` pour retirer les deux. Écriture jamais exercée sur une instance réelle.
+- **`boond_provider_invoices_update` rattache une ressource** : nouveau champ `resourceId`, envoyé en `relationships.resource` comme à la création, pour rattacher à une ressource une facture électronique (Peppol) arrivée sans ressource, au lieu de la dupliquer puis de supprimer l'originale. La relation est absente de `providerInvoices/bodyPut.json`, mais l'API l'applique : vérifié sur une instance réelle le 26/11/2026 (ressource d'une facture changée puis remise, autres champs intacts).
 - **Le résumé de `boond_provider_invoices_search` affiche le numéro de TVA du fournisseur** (`vatNumber`, présent dans les lignes de liste), pour identifier une facture électronique arrivée sans ressource. La société fournisseur n'est pas affichée : aucune des 60 lignes de liste lues sur une instance réelle (26/11/2026) ne portait la relation `providerCompany`.
 
 ### Fixed
