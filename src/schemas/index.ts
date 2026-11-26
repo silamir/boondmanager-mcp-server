@@ -1965,12 +1965,42 @@ export const PurchaseUpdateSchema = z
 
 // ---- Provider invoice schemas (factures fournisseur) ----
 
+// GET /provider-invoices — every filter below verified live on 2026-11-26
+// against the row totals (125 rows unfiltered): providerInvoiceStates [1] → 10,
+// sources [1] → 9 / [0] → 116, withoutResource → 2, period=invoiceDate and
+// period=invoicePeriod on October → 18, periodDynamic=thisMonth → 6,
+// sort=invoiceDate asc / desc reorders. The RAML is wrong on two of them:
+// `sources` is 0 = manual / 1 = e-invoice (it documents 1 = manual / 2 = peppol,
+// and `sources=2` returns the unfiltered baseline), and the state filter is
+// `providerInvoiceStates` (`states` is ignored).
 export const ProviderInvoiceSearchSchema = z
   .object({
-    keywords: z.string().optional().describe("Mots-clés de recherche"),
+    keywords: z.string().optional().describe("Mots-clés de recherche (référence de facture...)"),
     companyId: EntityIdSchema.optional().describe("Filtrer par ID société fournisseur (référence keywords CSOC<id>)"),
     resourceId: EntityIdSchema.optional().describe("Filtrer par ID ressource (référence keywords COMP<id>)"),
-    ...paginationShape,
+    providerInvoiceStates: intArray(
+      "IDs d'états de facture fournisseur — `boond://dictionary/states/provider-invoices` (`states` est ignoré par l'API)."
+    ),
+    sources: z
+      .array(z.union([z.literal(0), z.literal(1)]))
+      .optional()
+      .describe("Origine : 0 = saisie manuelle, 1 = facture électronique reçue."),
+    withoutResource: z
+      .boolean()
+      .optional()
+      .describe(
+        "true = seulement les factures rattachées à aucune ressource (typiquement une facture électronique qui vient d'arriver)."
+      ),
+    period: z
+      .enum(["invoiceDate", "invoicePeriod"])
+      .optional()
+      .describe(
+        "Champ de date borné par `startDate` / `endDate` : invoiceDate (date de facture), invoicePeriod (période facturée)."
+      ),
+    periodDynamic: periodDynamicField,
+    startDate: startDateField,
+    endDate: endDateField,
+    ...sortedPaginationShape,
   })
   .strict();
 

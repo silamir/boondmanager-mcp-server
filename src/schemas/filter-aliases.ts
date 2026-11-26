@@ -51,6 +51,7 @@ export type SearchEndpoint = Extract<
   | "absences"
   | "deliveries"
   | "payments"
+  | "provider-invoices"
 >;
 
 const PERIMETER_DYNAMIC_NOTE = 'pour « mes données / mon équipe », `perimeterDynamic: ["data"|"managers"]`';
@@ -261,6 +262,17 @@ export const ENDPOINT_FILTER_ALIASES: Readonly<Record<SearchEndpoint, Readonly<R
     typeof: { correct: "purchaseTypes", hint: "IDs de types d'achat (entiers)", dictionary: TYPEOF_URI("purchases") },
     types: { correct: "purchaseTypes", hint: "IDs de types d'achat (entiers)", dictionary: TYPEOF_URI("purchases") },
     invoiceid: { hint: "/payments ne connaît pas de référence FACT<id> — passer par `purchaseId` ou `companyId`" },
+  },
+  "provider-invoices": {
+    states: {
+      correct: "providerInvoiceStates",
+      hint: "IDs d'états (entiers) ; `states` est ignoré par l'API sur /provider-invoices",
+      dictionary: STATES_URI("provider-invoices"),
+    },
+    source: { correct: "sources", hint: "tableau : 0 = saisie manuelle, 1 = facture électronique" },
+    peppol: { correct: "sources", hint: "`sources: [1]` pour les factures électroniques reçues" },
+    einvoice: { correct: "sources", hint: "`sources: [1]` pour les factures électroniques reçues" },
+    unassigned: { correct: "withoutResource", hint: "`withoutResource: true` = factures sans ressource" },
   },
 };
 
