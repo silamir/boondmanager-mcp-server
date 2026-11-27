@@ -16,13 +16,17 @@
  * Store credentials stay on the server; the client only ever sees URLs scoped
  * to one file and one slot. Off unless `BOOND_MCP_UPLOAD_RELAY` is set.
  *
- * Backends implement {@link RelayBackend}; `sharepoint` (Microsoft Graph,
- * app-only `Sites.Selected`) is the first.
+ * Backends implement {@link RelayBackend}: `sharepoint` (Microsoft Graph,
+ * app-only `Sites.Selected`) and `gdrive` (Google Drive, service account, a
+ * shared drive). Drive has no pre-authenticated download URL, so for it the
+ * server reads the file itself and sends the bytes to BoondManager as a
+ * multipart upload instead of a `fileUrl`.
  */
-import { randomUUID } from "node:crypto";
+import { createSign, randomUUID } from "node:crypto";
 import { extname } from "node:path";
 import { readPositiveInt, readString } from "../config/env.js";
 import { DEFAULT_UPLOAD_MAX_BYTES } from "../constants.js";
+import { logger } from "./logger.js";
 import { sniffDocumentType, UploadRejectedError } from "./upload-source.js";
 
 /** How long a slot stays usable after creation. */
@@ -40,9 +44,17 @@ export interface SlotHandle {
 
 export interface StoredObject {
   size: number;
-  /** Short-lived, pre-authenticated URL BoondManager can download. */
-  downloadUrl: string;
+  /**
+   * Short-lived, pre-authenticated URL BoondManager can download. Absent when
+   * the store has none (Google Drive): the backend then implements `read`.
+   */
+  downloadUrl?: string;
+  /** Backend-private id of the stored file, for `head` / `read`. */
+  fileId?: string;
 }
+
+/** `trashed`: the permanent delete was refused and the copy went to the store's trash. */
+export type PurgeOutcome = "deleted" | "trashed";
 
 export interface RelayBackend {
   readonly name: string;
@@ -50,8 +62,20 @@ export interface RelayBackend {
   /** `undefined` when nothing was uploaded to the slot yet. */
   stat(ref: string, filename: string): Promise<StoredObject | undefined>;
   /** First bytes of the stored object, for type sniffing. */
-  head(downloadUrl: string, bytes: number): Promise<Buffer>;
-  purge(ref: string): Promise<void>;
+  head(stored: StoredObject, bytes: number): Promise<Buffer>;
+  /** Whole content, for stores without a pre-authenticated URL. */
+  read?(stored: StoredObject): Promise<Buffer>;
+  /**
+   * Delete the slot's stored copy. `stored`, when known, lets a backend delete
+   * by id instead of searching: a search can lag behind a fresh upload.
+   */
+  purge(ref: string, stored?: StoredObject): Promise<PurgeOutcome | void>;
+  /**
+   * Delete whatever an expired or forgotten slot left in the store. Needed when
+   * an upload can still land after the slot expired (Drive's resumable session
+   * outlives the slot), or after a restart lost the in-memory registry.
+   */
+  sweepStale?(olderThan: Date): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -244,8 +268,9 @@ export class SharePointRelay implements RelayBackend {
     return res.status >= 300 && res.status < 400 ? (res.headers.get("location") ?? undefined) : undefined;
   }
 
-  async head(downloadUrl: string, bytes: number): Promise<Buffer> {
-    const res = await fetch(downloadUrl, {
+  async head(stored: StoredObject, bytes: number): Promise<Buffer> {
+    if (!stored.downloadUrl) throw new Error("Relais SharePoint : pas d'URL de lecture pour ce fichier.");
+    const res = await fetch(stored.downloadUrl, {
       headers: { Range: `bytes=0-${bytes - 1}` },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
@@ -267,6 +292,272 @@ export class SharePointRelay implements RelayBackend {
 }
 
 // ---------------------------------------------------------------------------
+// Google Drive backend (service account, shared drive)
+// ---------------------------------------------------------------------------
+
+const DRIVE = "https://www.googleapis.com/drive/v3";
+const DRIVE_UPLOAD = "https://www.googleapis.com/upload/drive/v3";
+const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+/**
+ * Full Drive scope: `drive.file` only covers files the app created or the user
+ * opened with a picker, not a transit folder created by a human. What the
+ * service account can reach is bounded by its membership instead: it should be
+ * a member of one dedicated shared drive and nothing else.
+ */
+const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
+/** `appProperties` key tying the uploaded file to its slot. */
+const SLOT_PROPERTY = "boondMcpSlot";
+
+export interface GoogleDriveConfig {
+  clientEmail: string;
+  privateKey: string;
+  /** Transit folder, inside a shared drive. */
+  folderId: string;
+}
+
+/** Parse a service-account JSON key; a French reason when it is unusable. */
+export function parseServiceAccountKey(raw: string): { clientEmail: string; privateKey: string } | string {
+  let json: { client_email?: unknown; private_key?: unknown };
+  try {
+    json = JSON.parse(raw) as typeof json;
+  } catch {
+    return "Relais Google Drive : `BOOND_MCP_GDRIVE_SERVICE_ACCOUNT_KEY` n'est pas un JSON valide (contenu de la clé du compte de service attendu).";
+  }
+  if (typeof json.client_email !== "string" || typeof json.private_key !== "string") {
+    return "Relais Google Drive : la clé du compte de service doit contenir `client_email` et `private_key`.";
+  }
+  return { clientEmail: json.client_email, privateKey: json.private_key };
+}
+
+const base64url = (data: string | Buffer) => Buffer.from(data).toString("base64url");
+
+/** RS256-signed JWT assertion for the OAuth 2.0 JWT bearer grant (service accounts). */
+export function serviceAccountAssertion(cfg: { clientEmail: string; privateKey: string }, now = Date.now()): string {
+  const iat = Math.floor(now / 1000);
+  const header = base64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const claims = base64url(
+    JSON.stringify({ iss: cfg.clientEmail, scope: DRIVE_SCOPE, aud: GOOGLE_TOKEN_URL, iat, exp: iat + 3600 })
+  );
+  const signature = createSign("RSA-SHA256").update(`${header}.${claims}`).sign(cfg.privateKey);
+  return `${header}.${claims}.${base64url(signature)}`;
+}
+
+interface DriveFile {
+  id: string;
+  name?: string;
+  size?: string;
+  driveId?: string;
+}
+
+export class GoogleDriveRelay implements RelayBackend {
+  readonly name = "gdrive";
+  private token?: { value: string; expiresAt: number };
+  private driveId?: string;
+
+  constructor(private readonly cfg: GoogleDriveConfig) {}
+
+  private async accessToken(): Promise<string> {
+    if (this.token && this.token.expiresAt > Date.now() + 60_000) return this.token.value;
+    const body = new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: serviceAccountAssertion(this.cfg),
+    });
+    const res = await fetch(GOOGLE_TOKEN_URL, {
+      method: "POST",
+      body,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      access_token?: string;
+      expires_in?: number;
+      error?: string;
+    };
+    if (!res.ok || !json.access_token) {
+      // Never echo the assertion (it is signed with the private key).
+      throw new Error(
+        `Relais Google Drive : authentification du compte de service refusée (${json.error ?? res.status}).`
+      );
+    }
+    this.token = { value: json.access_token, expiresAt: Date.now() + (json.expires_in ?? 3600) * 1000 };
+    return this.token.value;
+  }
+
+  private async drive(
+    method: string,
+    url: string,
+    init: { body?: unknown; headers?: Record<string, string> } = {}
+  ): Promise<Response> {
+    return fetch(url, {
+      method,
+      headers: {
+        Authorization: `Bearer ${await this.accessToken()}`,
+        ...(init.body === undefined ? {} : { "Content-Type": "application/json; charset=UTF-8" }),
+        ...init.headers,
+      },
+      body: init.body === undefined ? null : JSON.stringify(init.body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  }
+
+  private async fail(what: string, res: Response): Promise<never> {
+    const json = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+    throw new Error(`Relais Google Drive : ${what} → ${res.status} ${json.error?.message ?? ""}`.trim());
+  }
+
+  /** The shared drive holding the transit folder; refuses a folder in a My Drive. */
+  private async sharedDrive(): Promise<string> {
+    if (this.driveId) return this.driveId;
+    const res = await this.drive(
+      "GET",
+      `${DRIVE}/files/${encodeURIComponent(this.cfg.folderId)}?fields=id,driveId,mimeType&supportsAllDrives=true`
+    );
+    if (res.status === 404) {
+      throw new Error(
+        "Relais Google Drive : dossier de transit introuvable. Vérifier `BOOND_MCP_GDRIVE_FOLDER_ID` et que le compte de service est membre du Drive partagé."
+      );
+    }
+    if (!res.ok) await this.fail("lecture du dossier de transit", res);
+    const folder = (await res.json()) as { driveId?: string; mimeType?: string };
+    if (folder.mimeType !== "application/vnd.google-apps.folder") {
+      throw new Error("Relais Google Drive : `BOOND_MCP_GDRIVE_FOLDER_ID` ne désigne pas un dossier.");
+    }
+    if (!folder.driveId) {
+      throw new Error(
+        "Relais Google Drive : le dossier de transit doit se trouver dans un Drive partagé (un compte de service n'a pas d'espace de stockage dans un « Mon Drive »)."
+      );
+    }
+    this.driveId = folder.driveId;
+    return folder.driveId;
+  }
+
+  async createSlot(slotId: string, filename: string): Promise<SlotHandle> {
+    await this.sharedDrive();
+    // Resumable session: the client PUTs the bytes to the session URI; the
+    // file only exists once the upload completes. `appProperties` lets `stat`
+    // find it without knowing its id.
+    const res = await this.drive("POST", `${DRIVE_UPLOAD}/files?uploadType=resumable&supportsAllDrives=true`, {
+      body: { name: filename, parents: [this.cfg.folderId], appProperties: { [SLOT_PROPERTY]: slotId } },
+    });
+    if (!res.ok) await this.fail("ouverture de la session d'upload", res);
+    await res.body?.cancel().catch(() => undefined);
+    const uploadUrl = res.headers.get("location");
+    if (!uploadUrl) throw new Error("Relais Google Drive : la session d'upload n'a pas renvoyé d'URL de dépôt.");
+    return { ref: slotId, uploadUrl, expiresAt: new Date(Date.now() + SLOT_TTL_MS) };
+  }
+
+  /** Files of the transit folder matching `filter` (a Drive query clause). */
+  private async listTransit(filter: string): Promise<DriveFile[]> {
+    const driveId = await this.sharedDrive();
+    const folder = this.cfg.folderId.replace(/[^A-Za-z0-9_-]/g, "");
+    const q = `'${folder}' in parents and ${filter} and trashed=false`;
+    const params = new URLSearchParams({
+      q,
+      corpora: "drive",
+      driveId,
+      includeItemsFromAllDrives: "true",
+      supportsAllDrives: "true",
+      fields: "files(id,name,size)",
+    });
+    const res = await this.drive("GET", `${DRIVE}/files?${params.toString()}`);
+    if (!res.ok) await this.fail("recherche du fichier déposé", res);
+    return ((await res.json()) as { files?: DriveFile[] }).files ?? [];
+  }
+
+  private findSlotFiles(slotId: string): Promise<DriveFile[]> {
+    return this.listTransit(
+      `appProperties has { key='${SLOT_PROPERTY}' and value='${slotId.replace(/[^0-9a-f-]/gi, "")}' }`
+    );
+  }
+
+  private async deleteFile(id: string): Promise<PurgeOutcome> {
+    const res = await this.drive("DELETE", `${DRIVE}/files/${encodeURIComponent(id)}?supportsAllDrives=true`);
+    if (res.ok) return "deleted";
+    if (res.status === 404) {
+      // Observed on a real Workspace: without the Manager role on the shared
+      // drive itself, files.delete answers 404 for a file the account can list
+      // and read. Only a file that is really gone counts as deleted.
+      const still = await this.drive(
+        "GET",
+        `${DRIVE}/files/${encodeURIComponent(id)}?fields=id&supportsAllDrives=true`
+      );
+      await still.body?.cancel().catch(() => undefined);
+      if (still.status === 404) return "deleted";
+    }
+    // Permanent delete refused (403, or a 404 on a file still there): the
+    // account lacks the Manager role on the shared drive. Fall back to the
+    // trash (emptied by Drive after 30 days) rather than leave the file in the
+    // transit folder, log it and report it to the caller. Not exercised on a
+    // real Workspace (the role was granted before a refusal could occur).
+    await res.body?.cancel().catch(() => undefined);
+    const trash = await this.drive("PATCH", `${DRIVE}/files/${encodeURIComponent(id)}?supportsAllDrives=true`, {
+      body: { trashed: true },
+    });
+    if (trash.ok) {
+      await trash.body?.cancel().catch(() => undefined);
+      logger.warn(
+        { status: res.status },
+        "upload relay: permanent delete refused, transit copy moved to the Drive trash (30 days); " +
+          "give the service account the Manager role on the shared drive itself"
+      );
+      return "trashed";
+    }
+    throw new Error(
+      `Relais Google Drive : suppression définitive refusée (${res.status}) et mise à la corbeille refusée (${trash.status}). ` +
+        "Le compte de service doit avoir le rôle Gestionnaire sur le Drive partagé lui-même."
+    );
+  }
+
+  async stat(ref: string): Promise<StoredObject | undefined> {
+    const file = (await this.findSlotFiles(ref))[0];
+    if (!file || file.size === undefined) return undefined;
+    return { size: Number(file.size), fileId: file.id };
+  }
+
+  private async media(stored: StoredObject, headers: Record<string, string> = {}): Promise<Buffer> {
+    if (!stored.fileId) throw new Error("Relais Google Drive : identifiant du fichier déposé manquant.");
+    const res = await this.drive(
+      "GET",
+      `${DRIVE}/files/${encodeURIComponent(stored.fileId)}?alt=media&supportsAllDrives=true`,
+      { headers }
+    );
+    if (!res.ok) await this.fail("lecture du fichier déposé", res);
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  async head(stored: StoredObject, bytes: number): Promise<Buffer> {
+    return (await this.media(stored, { Range: `bytes=0-${bytes - 1}` })).subarray(0, bytes);
+  }
+
+  async read(stored: StoredObject): Promise<Buffer> {
+    return this.media(stored);
+  }
+
+  async purge(ref: string, stored?: StoredObject): Promise<PurgeOutcome> {
+    // files.delete is permanent (no trash) and needs the `organizer` role
+    // ("Gestionnaire") on the shared drive; `deleteFile` falls back to the trash.
+    // Delete by id first: on a real Workspace (2026-11-27) the search by tag
+    // missed files uploaded seconds earlier, so a search-only purge left them.
+    const outcomes: PurgeOutcome[] = [];
+    if (stored?.fileId) outcomes.push(await this.deleteFile(stored.fileId));
+    for (const file of await this.findSlotFiles(ref)) {
+      if (file.id !== stored?.fileId) outcomes.push(await this.deleteFile(file.id));
+    }
+    return outcomes.includes("trashed") ? "trashed" : "deleted";
+  }
+
+  /**
+   * The resumable session URI stays usable after the slot expired, so a late
+   * PUT can still create a file no slot will purge; a restart loses the slots
+   * too. The transit folder is dedicated: delete every file older than the TTL.
+   */
+  async sweepStale(olderThan: Date): Promise<void> {
+    // RFC 3339 without milliseconds, the form the Drive query examples use.
+    const cutoff = olderThan.toISOString().replace(/\.\d{3}Z$/, "Z");
+    for (const file of await this.listTransit(`createdTime < '${cutoff}'`)) await this.deleteFile(file.id);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Configuration and slot registry
 // ---------------------------------------------------------------------------
 
@@ -274,10 +565,11 @@ export class SharePointRelay implements RelayBackend {
 export function relayFromEnv(env: NodeJS.ProcessEnv = process.env): RelayBackend | string {
   const kind = (readString("BOOND_MCP_UPLOAD_RELAY", env) ?? "").toLowerCase();
   if (kind === "") {
-    return "Relais d'upload désactivé : l'opérateur du serveur doit définir `BOOND_MCP_UPLOAD_RELAY` (valeur : `sharepoint`).";
+    return "Relais d'upload désactivé : l'opérateur du serveur doit définir `BOOND_MCP_UPLOAD_RELAY` (valeurs : `sharepoint`, `gdrive`).";
   }
+  if (kind === "gdrive") return googleDriveRelayFromEnv(env);
   if (kind !== "sharepoint") {
-    return `Relais d'upload inconnu : « ${kind} » (valeur acceptée : \`sharepoint\`).`;
+    return `Relais d'upload inconnu : « ${kind} » (valeurs acceptées : \`sharepoint\`, \`gdrive\`).`;
   }
   const required = {
     tenantId: "BOOND_MCP_SHAREPOINT_TENANT_ID",
@@ -298,6 +590,17 @@ export function relayFromEnv(env: NodeJS.ProcessEnv = process.env): RelayBackend
   });
 }
 
+function googleDriveRelayFromEnv(env: NodeJS.ProcessEnv): RelayBackend | string {
+  const names = ["BOOND_MCP_GDRIVE_SERVICE_ACCOUNT_KEY", "BOOND_MCP_GDRIVE_FOLDER_ID"] as const;
+  const missing = names.filter((name) => !readString(name, env));
+  if (missing.length > 0) {
+    return `Relais Google Drive incomplet : variable(s) manquante(s) ${missing.map((m) => `\`${m}\``).join(", ")}.`;
+  }
+  const key = parseServiceAccountKey(readString(names[0], env) as string);
+  if (typeof key === "string") return key;
+  return new GoogleDriveRelay({ ...key, folderId: (readString(names[1], env) as string).trim() });
+}
+
 interface Slot {
   backend: RelayBackend;
   handle: SlotHandle;
@@ -313,12 +616,15 @@ export interface CreatedSlot {
 }
 
 export interface ClaimedUpload {
-  downloadUrl: string;
+  /** Pre-authenticated URL handed to BoondManager as `fileUrl`. */
+  downloadUrl?: string;
+  /** The bytes, when the store has no such URL (sent as a multipart file). */
+  data?: Buffer;
   filename: string;
   contentType: string;
   size: number;
   /** Purge the stored object; call once BoondManager has fetched it. */
-  release: () => Promise<void>;
+  release: () => Promise<PurgeOutcome | void>;
 }
 
 /**
@@ -344,14 +650,19 @@ export class UploadRelay {
     return readPositiveInt("BOOND_MCP_UPLOAD_MAX_BYTES", DEFAULT_UPLOAD_MAX_BYTES, this.env);
   }
 
-  private async sweep(): Promise<void> {
+  private async sweep(backend: RelayBackend): Promise<void> {
     const now = Date.now();
     for (const [id, slot] of this.slots) {
       if (slot.handle.expiresAt.getTime() <= now) {
         this.slots.delete(id);
-        await slot.backend.purge(slot.handle.ref).catch(() => undefined);
+        await slot.backend
+          .purge(slot.handle.ref)
+          .catch((error: unknown) => logger.warn({ err: String(error) }, "upload relay: expired slot not purged"));
       }
     }
+    await backend
+      .sweepStale?.(new Date(now - SLOT_TTL_MS))
+      .catch((error: unknown) => logger.warn({ err: String(error) }, "upload relay: stale sweep failed"));
   }
 
   async open(filename: string): Promise<CreatedSlot> {
@@ -360,7 +671,7 @@ export class UploadRelay {
     if (ext === "") {
       throw new UploadRejectedError("`fileName` doit comporter une extension (ex. « cv.pdf »).");
     }
-    await this.sweep();
+    await this.sweep(backend);
     const uploadSlot = randomUUID();
     const clean = sanitizeSharePointName(filename);
     const handle = await backend.createSlot(uploadSlot, clean);
@@ -381,10 +692,11 @@ export class UploadRelay {
         `\`uploadSlot\` inconnu ou déjà utilisé : « ${uploadSlot} ». Créer un nouveau slot avec \`boond_documents_upload_slot\`.`
       );
     }
-    const purge = () => slot.backend.purge(slot.handle.ref);
     if (slot.handle.expiresAt.getTime() <= Date.now()) {
       this.slots.delete(uploadSlot);
-      await purge().catch(() => undefined);
+      await slot.backend
+        .purge(slot.handle.ref)
+        .catch((e: unknown) => logger.warn({ err: String(e) }, "upload relay: expired slot not purged"));
       throw new UploadRejectedError("Slot d'upload expiré. Créer un nouveau slot avec `boond_documents_upload_slot`.");
     }
     const stored = await slot.backend.stat(slot.handle.ref, slot.filename);
@@ -395,6 +707,19 @@ export class UploadRelay {
           "Exécuter la commande d'upload (réponse HTTP 200/201 attendue), puis réessayer."
       );
     }
+    const purge = () => slot.backend.purge(slot.handle.ref, stored);
+    /** Purge after a refusal; a failed purge is logged and named in the refusal, never hidden. */
+    const purgeAfterRefusal = async (error: unknown): Promise<never> => {
+      const failure = await purge().then(
+        () => undefined,
+        (e: unknown) => (e instanceof Error ? e.message : String(e))
+      );
+      if (failure === undefined) throw error;
+      logger.warn({ err: failure }, "upload relay: transit copy not purged");
+      const note = ` (⚠️ copie de transit NON supprimée : ${failure} — à supprimer à la main dans le stockage du relais)`;
+      const message = (error instanceof Error ? error.message : String(error)) + note;
+      throw error instanceof UploadRejectedError ? new UploadRejectedError(message) : new Error(message);
+    };
     this.slots.delete(uploadSlot);
     try {
       const max = this.maxBytes();
@@ -403,7 +728,7 @@ export class UploadRelay {
           `Fichier trop volumineux : ${(stored.size / 1024 / 1024).toFixed(1)} Mo (max ${(max / 1024 / 1024).toFixed(1)} Mo).`
         );
       }
-      const head = await slot.backend.head(stored.downloadUrl, 16);
+      const head = await slot.backend.head(stored, 16);
       const sniffed = sniffDocumentType(head, slot.filename);
       if (!sniffed || !sniffed.extensions.includes(extname(slot.filename).toLowerCase())) {
         throw new UploadRejectedError(
@@ -411,16 +736,26 @@ export class UploadRelay {
             "ou à son extension."
         );
       }
+      let data: Buffer | undefined;
+      if (stored.downloadUrl === undefined) {
+        if (!slot.backend.read) throw new Error(`Relais ${slot.backend.name} : aucun moyen de lire le fichier déposé.`);
+        data = await slot.backend.read(stored);
+        if (data.length > max) {
+          throw new UploadRejectedError(
+            `Fichier trop volumineux : ${(data.length / 1024 / 1024).toFixed(1)} Mo (max ${(max / 1024 / 1024).toFixed(1)} Mo).`
+          );
+        }
+      }
       return {
-        downloadUrl: stored.downloadUrl,
+        ...(stored.downloadUrl !== undefined ? { downloadUrl: stored.downloadUrl } : {}),
+        ...(data !== undefined ? { data } : {}),
         filename: slot.filename,
         contentType: sniffed.contentType,
         size: stored.size,
         release: purge,
       };
     } catch (error) {
-      await purge().catch(() => undefined);
-      throw error;
+      return purgeAfterRefusal(error);
     }
   }
 }

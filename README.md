@@ -122,7 +122,7 @@ Serveur MCP (Model Context Protocol) pour l'API BoondManager, permettant a Claud
 | **Logs d'audit** | 2 | search, get |
 | **Notifications** | 2 | search, get |
 | **Fils de discussion** | 2 | search, get |
-| **Documents / CV** | 4 | get (telechargement), create (upload par URL, fichier local, slot de relais ou base64 + parsing CV), upload_slot (relais SharePoint), delete |
+| **Documents / CV** | 4 | get (telechargement), create (upload par URL, fichier local, slot de relais ou base64 + parsing CV), upload_slot (relais SharePoint ou Google Drive), delete |
 | **Application** | 2 | dictionnaire, utilisateur courant |
 
 ### Detail des onglets par entite
@@ -641,7 +641,7 @@ export BOOND_MCP_UPLOAD_DIRS="$HOME/Documents/Boond,$HOME/Downloads"
 
 Garde-fous : chemin absolu obligatoire, confinement vérifié après résolution des liens symboliques (`..` et symlinks sortants refusés), fichier régulier uniquement, type déterminé par les premiers octets (PDF, DOCX/XLSX/PPTX, ODT/ODS, DOC/XLS/PPT, RTF, PNG, JPEG, GIF, WebP) et non par l'extension. N'autorisez que des répertoires dédiés : tout fichier accepté qui s'y trouve peut être envoyé dans BoondManager à la demande du modèle.
 
-### Relais d'upload pour les pièces jointes de conversation (SharePoint)
+### Relais d'upload pour les pièces jointes de conversation (SharePoint ou Google Drive)
 
 Une pièce jointe glissée dans une conversation se trouve dans l'environnement d'exécution de code du client (bac à sable), pas sur le poste du serveur : `filePath` ne la voit pas, et le modèle ne peut pas la retranscrire de façon fiable en base64. Le relais la fait transiter **hors de la sortie du modèle** :
 
@@ -653,7 +653,7 @@ Les identifiants Entra ID restent côté serveur ; le client ne voit que des URL
 
 | Variable | Défaut | Description |
 | --- | --- | --- |
-| `BOOND_MCP_UPLOAD_RELAY` | _(aucune)_ | `sharepoint` pour activer le relais. Absente = `boond_documents_upload_slot` refusé. |
+| `BOOND_MCP_UPLOAD_RELAY` | _(aucune)_ | `sharepoint` ou `gdrive` pour activer le relais. Absente = `boond_documents_upload_slot` refusé. |
 | `BOOND_MCP_SHAREPOINT_TENANT_ID` | — | ID de l'annuaire (locataire) Entra ID. |
 | `BOOND_MCP_SHAREPOINT_CLIENT_ID` | — | ID d'application de l'inscription Entra ID. |
 | `BOOND_MCP_SHAREPOINT_CLIENT_SECRET` | — | Secret client (à renouveler avant expiration). |
@@ -677,6 +677,29 @@ New-MgSitePermission -SiteId $site.Id -BodyParameter @{
 - côté client, autoriser `<tenant>.sharepoint.com` dans la liste blanche réseau de l'exécution de code.
 
 Compromis assumé : l'URL de lecture que reçoit BoondManager est pré-authentifiée pendant sa courte durée de vie (quelques minutes, fixée par Microsoft) ; elle est imprévisible et le fichier est supprimé dès que BoondManager l'a récupéré.
+
+#### Variante Google Drive (`BOOND_MCP_UPLOAD_RELAY=gdrive`)
+
+Même déroulé, avec deux différences imposées par Drive :
+
+- **Pas d'URL de lecture temporaire** : l'API Drive n'en fournit pas (le téléchargement exige un jeton, et `webContentLink` suppose un partage par lien). Le serveur MCP lit donc lui-même le fichier avec le compte de service et l'envoie à BoondManager en pièce jointe (multipart), comme pour `filePath`. Aucun partage par lien n'est créé : la politique de partage du Workspace n'a pas à être assouplie.
+- **Suppression définitive** : `files.delete` supprime sans passer par la corbeille (une mise à la corbeille y laisserait le fichier 30 jours). Elle exige le rôle **Gestionnaire** sur le Drive partagé ; à défaut, repli sur la corbeille, signalé dans les logs (voir la mise en place). Un dépôt arrivé après l'expiration du slot (l'URL de session Drive reste valable bien plus longtemps), ou laissé par un redémarrage, est supprimé à l'ouverture d'un slot suivant : tout fichier du dossier de transit créé il y a plus de 15 minutes est supprimé. Ce dossier doit donc être réservé au relais.
+
+| Variable | Défaut | Description |
+| --- | --- | --- |
+| `BOOND_MCP_GDRIVE_SERVICE_ACCOUNT_KEY` | — | Contenu JSON de la clé du compte de service (au moins `client_email` et `private_key`). |
+| `BOOND_MCP_GDRIVE_FOLDER_ID` | — | ID du dossier de transit, **dans un Drive partagé** (refusé sinon). |
+
+Mise en place, avec le minimum de droits :
+
+- un projet Google Cloud avec l'API Google Drive activée, et un compte de service avec une clé JSON. Aucune délégation au niveau du domaine : le compte de service agit en son nom propre ;
+- un **Drive partagé dédié** au transit, contenant le dossier de transit. Un compte de service n'a pas d'espace de stockage : il ne peut pas créer de fichier dans le « Mon Drive » d'un utilisateur, d'où le Drive partagé ;
+- le compte de service ajouté comme membre **du Drive partagé lui-même** (pas seulement du dossier), et de lui seul, avec le rôle **Gestionnaire** : nécessaire à la suppression définitive. Avec un rôle inférieur, Drive refuse la suppression définitive (il répond même 404 pour un fichier que le compte peut lire) : le relais met alors le fichier **à la corbeille du Drive partagé** (vidée par Drive au bout de 30 jours), l'écrit en avertissement dans les logs du serveur et dans la réponse de `boond_documents_create`, et ne signale une erreur que si la mise à la corbeille échoue aussi. C'est un repli, non exercé sur un Workspace réel : le fonctionnement prévu reste la suppression définitive. Le relais utilise le scope `https://www.googleapis.com/auth/drive` : `drive.file` ne couvre pas un dossier créé par une personne. Ce que le compte de service peut atteindre est donc limité par son appartenance : ne l'ajoutez à aucun autre Drive ni dossier ;
+- l'adresse du compte de service (`…@….iam.gserviceaccount.com`) peut être traitée comme externe à l'organisation : si son ajout au Drive partagé est refusé, vérifier les paramètres de partage des Drive partagés dans la console d'administration Google (point non vérifié) ;
+- dans les paramètres du Drive partagé, laisser le téléchargement, la copie et l'impression autorisés (sinon le relais ne peut pas lire le fichier déposé) ;
+- côté client, autoriser `www.googleapis.com` dans la liste blanche réseau de l'exécution de code.
+
+Observé sur un Workspace réel (27/11/2026) : le cycle complet, du slot jusqu'au document créé dans BoondManager (PDF rattaché à une facture fournisseur, `parentType: providerinvoice`, relu intact). Le Drive partagé doit **autoriser le téléchargement** : avec le téléchargement, la copie et l'impression restreints, Drive refuse la lecture au compte de service (403 « This file cannot be downloaded by the user »). La suppression définitive et le nettoyage des dépôts tardifs ont aussi été observés, une fois le compte de service Gestionnaire du Drive partagé : 4 fichiers de transit supprimés (204), dossier et corbeille vides.
 
 ### Restriction d'accès (profils / domaines / lecture seule)
 

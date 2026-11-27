@@ -462,6 +462,69 @@ describe("registerDocumentTools", () => {
       expect(result.structuredContent).toEqual({ id: "900", type: "document" });
     });
 
+    it("sends a relayed file as multipart bytes when the relay has no download URL (Google Drive)", async () => {
+      const data = Buffer.from("%PDF-1.7 relayed");
+      const relayed = {
+        data,
+        filename: "facture.pdf",
+        contentType: "application/pdf",
+        size: data.length,
+        release: vi.fn().mockResolvedValue(undefined),
+      };
+      vi.mocked(uploadRelay.claim).mockResolvedValue(relayed as never);
+      vi.mocked(apiUploadForm).mockResolvedValue({ data: { id: "901", type: "document", attributes: {} } });
+      registerDocumentTools(server);
+      const result = await handlerOf(
+        server,
+        "boond_documents_create"
+      )({ parentType: "opportunity", parentId: 462, uploadSlot: "21d7c7f5-bc3a-4a08-859d-8eebbc0e98c3" });
+      expect(apiUploadForm).toHaveBeenCalledWith(
+        "/documents",
+        { parentType: "opportunity", parentId: "462" },
+        { data, filename: "facture.pdf", contentType: "application/pdf" }
+      );
+      expect(relayed.release).toHaveBeenCalledTimes(1);
+      expect(result.content[0].text).toContain("via relais");
+    });
+
+    it("says the relay copy went to the trash when the permanent delete was refused", async () => {
+      vi.mocked(uploadRelay.claim).mockResolvedValue({
+        downloadUrl: "https://relay.example/dl",
+        filename: "cv.pdf",
+        contentType: "application/pdf",
+        size: 1024,
+        release: vi.fn().mockResolvedValue("trashed"),
+      } as never);
+      vi.mocked(apiUploadForm).mockResolvedValue({ data: { id: "903", type: "document", attributes: {} } });
+      registerDocumentTools(server);
+      const result = await handlerOf(
+        server,
+        "boond_documents_create"
+      )({ parentType: "candidateResume", parentId: 5, uploadSlot: "21d7c7f5-bc3a-4a08-859d-8eebbc0e98c5" });
+      expect(result.content[0].text).toContain("mise à la corbeille du stockage, vidée sous 30 jours");
+      expect(result.content[0].text).not.toContain("copie de transit supprimée");
+    });
+
+    it("says so when the relay copy could not be purged, instead of claiming it was", async () => {
+      const relayed = {
+        downloadUrl: "https://relay.example/dl",
+        filename: "cv.pdf",
+        contentType: "application/pdf",
+        size: 1024,
+        release: vi.fn().mockRejectedValue(new Error("Relais Google Drive : suppression définitive → 403")),
+      };
+      vi.mocked(uploadRelay.claim).mockResolvedValue(relayed as never);
+      vi.mocked(apiUploadForm).mockResolvedValue({ data: { id: "902", type: "document", attributes: {} } });
+      registerDocumentTools(server);
+      const result = await handlerOf(
+        server,
+        "boond_documents_create"
+      )({ parentType: "candidateResume", parentId: 5, uploadSlot: "21d7c7f5-bc3a-4a08-859d-8eebbc0e98c4" });
+      expect(result.content[0].text).toContain("NON supprimée");
+      expect(result.content[0].text).toContain("403");
+      expect(result.content[0].text).not.toContain("copie de transit supprimée");
+    });
+
     it("uploads a local file as a binary multipart part, without fileUrl", async () => {
       const file = { data: Buffer.from("%PDF-1.7"), filename: "cv.pdf", contentType: "application/pdf" };
       vi.mocked(readLocalUpload).mockResolvedValue(file);
