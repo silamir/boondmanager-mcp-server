@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Resource Planner (plan de charge) en lecture** : `boond_resource_planner_resource` (plan de charge mensuel d'une ressource sur tous ses projets) et `boond_resource_planner_project` (qui est planifié sur un projet, et combien de jours), sur les routes `/apps/resource-planner/resources/{id}_{AAAA-MM}` et `/apps/resource-planner/projects/{id}_{AAAA-MM}` de l'app Resource Planner. Ces routes sont absentes de la RAML publique : relevées dans le trafic de l'app, lues sur une instance réelle le 27/11/2026 avec les identifiants JWT du serveur. La réponse est résumée par ligne du planning (projet ou ressource, prestation, jours, dates) avec les chiffres du projet (signé, consommé, reste planifié). Le mois est validé au format `AAAA-MM` (BoondManager transforme `2027-13` en `2028-01` sans erreur). L'écriture du planning n'est pas exposée : jamais exercée. Domaine ajouté au profil `delivery`.
+
 ### Fixed
 
 - **`boond_companies_provider_invoices` appelait une route inexistante** : `/companies/{id}/provider_invoices` (404 sur une instance réelle, en lecture), au lieu de `/companies/{id}/provider-invoices` (200, la graphie de la doc RAML). L'outil n'avait donc jamais fonctionné. `registerTabTools` refuse désormais à l'enregistrement un segment d'onglet qui n'est pas en kebab-case.

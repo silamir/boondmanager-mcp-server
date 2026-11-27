@@ -59,17 +59,17 @@ ces regroupements, prêts à l'emploi — définis dans
 
 | Profil | Domaines | Outils | Prompts |
 |--------|----------|--------|---------|
-| `recruiting` | candidates, positionings, opportunities, contacts, companies, documents, actions, resources, forms, alerts, application, workflows | 100 | 14 |
+| `recruiting` | candidates, positionings, opportunities, contacts, companies, documents, actions, resources, forms, alerts, application, workflows | 103 | 14 |
 | `sales` | opportunities, companies, contacts, actions, projects, orders, products, reporting, resources, absences, timesheets, invoices, alerts, application, workflows | 129 | 15 |
 | `finance` | invoices, payments, orders, purchases, provider-invoices, expenses, projects, companies, reporting, timesheets, deliveries, alerts, application, workflows | 90 | 6 |
-| `delivery` | projects, deliveries, resources, timesheets, absences, planning-absences, validations, contracts, inactivities, groupments, forms, alerts, application, workflows | 82 | 10 |
+| `delivery` | projects, deliveries, resources, timesheets, absences, planning-absences, resource-planner, validations, contracts, inactivities, groupments, forms, alerts, application, workflows | 84 | 10 |
 | `admin` | accounts, agencies, business-units, poles, roles, logs, webhooks, flags, alerts, application | 25 | 1 |
-| *(aucun)* | tous | 235 | 24 |
+| *(aucun)* | tous | 240 | 24 |
 
 Comptages **générés** depuis les registrations réelles (les mêmes que celles
 qu'un client voit dans `tools/list`), profil seul, toutes opérations — recalculés
-le 2026-09-26 (issue #255). Avec `BOOND_MCP_READ_ONLY=true` en plus :
-`recruiting` 72, `sales` 93, `finance` 61, `delivery` 57, `admin` 22. Pour
+le 2026-11-27 (Resource Planner). Avec `BOOND_MCP_READ_ONLY=true` en plus :
+`recruiting` 72, `sales` 93, `finance` 61, `delivery` 59, `admin` 22. Pour
 recalculer : `npm run build`, puis `registerAll()` sur un serveur factice avec
 `resolveAccessPolicy({ BOOND_MCP_PROFILE: … })` (voir `src/server.test.ts`).
 

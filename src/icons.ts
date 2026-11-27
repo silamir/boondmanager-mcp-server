@@ -165,6 +165,7 @@ export const DOMAIN_ICONS: Readonly<Record<DomainName, Icon[]>> = {
   alerts: [BELL],
   documents: [DOCUMENT],
   workflows: [LIST],
+  "resource-planner": [CALENDAR],
 };
 
 /**
