@@ -1987,14 +1987,22 @@ export const PurchaseUpdateSchema = z
 
 // ---- Provider invoice schemas (factures fournisseur) ----
 
-// GET /provider-invoices — every filter below verified live on 2026-11-26
-// against the row totals (125 rows unfiltered): providerInvoiceStates [1] → 10,
+// GET /provider-invoices — filters checked live (read only) against the row
+// totals. 2026-11-26 (125 rows unfiltered): providerInvoiceStates [1] → 10,
 // sources [1] → 9 / [0] → 116, withoutResource → 2, period=invoiceDate and
 // period=invoicePeriod on October → 18, periodDynamic=thisMonth → 6,
 // sort=invoiceDate asc / desc reorders. The RAML is wrong on two of them:
 // `sources` is 0 = manual / 1 = e-invoice (it documents 1 = manual / 2 = peppol,
 // and `sources=2` returns the unfiltered baseline), and the state filter is
 // `providerInvoiceStates` (`states` is ignored).
+// 2026-11-27 (130 rows, expected counts computed from the full list): resources
+// [120] → 16 and [120, 128] → 31 as expected; resources + withoutResource → 0
+// (both apply, AND); companies [1] → 0 (applied); amount filters → 130 (ignored)
+// WITHOUT amountCurrency, and 5 / 13 as expected WITH amountCurrency=0;
+// lastCustomPeriod 3,months → 34 = Aug-Oct and 1,years → 22 = calendar 2025
+// (previous complete units, the current one excluded); nextCustomPeriod 1,months
+// → 0 (no future invoice, consistent but not conclusive). Not conclusive:
+// withoutCompany → 130 (no invoice on the tenant has a provider company).
 export const ProviderInvoiceSearchSchema = z
   .object({
     keywords: z.string().optional().describe("Mots-clés de recherche (référence de facture...)"),
@@ -2014,10 +2022,13 @@ export const ProviderInvoiceSearchSchema = z
         "true = seulement les factures rattachées à aucune ressource (typiquement une facture électronique qui vient d'arriver)."
       ),
     resources: entityIdArray(
-      "IDs de ressources (plusieurs à la fois, contrairement à `resourceId`). Ignoré si `withoutResource` est vrai."
+      "IDs de ressources (plusieurs à la fois, contrairement à `resourceId`). Combiné avec `withoutResource: true`, ne renvoie rien."
     ),
     companies: entityIdArray("IDs de sociétés fournisseur (plusieurs à la fois)."),
-    withoutCompany: z.boolean().optional().describe("true = seulement les factures sans société fournisseur."),
+    withoutCompany: z
+      .boolean()
+      .optional()
+      .describe("true = seulement les factures sans société fournisseur (effet non vérifié)."),
     period: z
       .enum(["invoiceDate", "invoicePeriod"])
       .optional()
@@ -2028,7 +2039,7 @@ export const ProviderInvoiceSearchSchema = z
       .enum([...periodDynamicField.unwrap().options, "lastCustomPeriod", "nextCustomPeriod"])
       .optional()
       .describe(
-        "Fenêtre relative appliquée à `period` : thisMonth, lastMonth, thisYear, untilToday…, ou lastCustomPeriod / nextCustomPeriod avec `periodDynamicParameters`."
+        "Fenêtre relative appliquée à `period` : thisMonth, lastMonth, thisYear, untilToday…, ou lastCustomPeriod / nextCustomPeriod avec `periodDynamicParameters` (les N unités complètes précédentes / suivantes, l'unité en cours exclue : `3,months` le 27/11 = août à octobre)."
       ),
     periodDynamicParameters: z
       .string()
@@ -2054,7 +2065,9 @@ export const ProviderInvoiceSearchSchema = z
       .number()
       .int()
       .optional()
-      .describe("Devise du montant filtré : ID de `setting.currency` (`boond_application_dictionary`)."),
+      .describe(
+        "Devise du montant filtré : ID de `setting.currency` (`boond_application_dictionary`, 0 = euro sur l'instance observée). **Obligatoire avec `amountType`** : sans elle, Boond ignore le filtre de montant sans erreur (observé)."
+      ),
     ...perimeterShape,
     ...sortedPaginationShape,
   })
@@ -2120,7 +2133,8 @@ export const ProviderInvoiceCreateSchema = z
   })
   .strict();
 
-// PUT /provider-invoices/{id} — issue #252 (write path not exercised, see .claude/rules/domain-writes.md).
+// PUT /provider-invoices/{id} — issue #252. Exercised on the production tenant with
+// `resourceId` only (see .claude/rules/domain-writes.md); every other field is not.
 export const ProviderInvoiceUpdateSchema = z
   .object({
     id: EntityIdSchema.describe("ID de la facture fournisseur à modifier"),
@@ -2142,18 +2156,19 @@ export const ProviderInvoiceUpdateSchema = z
     startDate: z.string().optional().describe("Date de début de période (YYYY-MM-DD)"),
     endDate: z.string().optional().describe("Date de fin de période (YYYY-MM-DD)"),
     // dueDate / paidDate are read attributes (profile.json) but absent from the RAML
-    // bodyPut.json: the API may ignore them. Payments go through `payments`.
+    // bodyPut.json, whose attributes are additionalProperties: false: the API may
+    // ignore or refuse them (not exercised). Payments go through `payments`.
     dueDate: z
       .string()
       .optional()
       .describe(
-        "Date d'échéance (YYYY-MM-DD). Absente de la doc de modification : peut être ignorée, relire la facture"
+        "Date d'échéance (YYYY-MM-DD). Absente de la doc de modification : peut être ignorée ou refusée, relire la facture"
       ),
     paidDate: z
       .string()
       .optional()
       .describe(
-        "Date de règlement (YYYY-MM-DD). Absente de la doc de modification : peut être ignorée, relire la facture ; le règlement documenté passe par `payments`"
+        "Date de règlement (YYYY-MM-DD). Absente de la doc de modification : peut être ignorée ou refusée, relire la facture ; le règlement documenté passe par `payments`"
       ),
     amountExcludingTax: z.number().optional().describe("Montant HT"),
     amountIncludingTax: z.number().optional().describe("Montant TTC"),

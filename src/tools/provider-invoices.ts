@@ -138,7 +138,7 @@ export function registerProviderInvoiceTools(server: McpServer): void {
       instead:
         "`boond_invoices_create` pour une facture de vente adressée à un client — les deux sens ne partagent pas d'endpoint.",
       behaviour: [
-        "`resource`, `providerCompany` et `providerContact` sont attendus sous forme d'ID numériques ; `companyId` et `contactId` vont ensemble (exigé par l'API).",
+        "`resourceId` (relation `resource`), `companyId` et `contactId` (relations `providerCompany` / `providerContact`) sont des ID numériques ; `companyId` et `contactId` vont ensemble (exigé par l'API).",
         "`mainManagerId`, `agencyId`, `poleId`, `billingDetailId`, `stateReason` et `payments` (par prestation) suivent la doc de l'API, non vérifiés.",
         "Écriture non idempotente.",
       ],
@@ -151,7 +151,7 @@ export function registerProviderInvoiceTools(server: McpServer): void {
     summaryFn: providerInvoiceSummary,
     description: composeDescription({
       purpose: "Liste et recherche les factures fournisseur (factures reçues des prestataires).",
-      when: "pour suivre les factures d'achat, par fournisseur, ressource, état, origine (saisie manuelle / facture électronique reçue), période ou montant (`amountType` + `amount` ou `amountMin` / `amountMax`, non vérifié) ; `withoutResource: true` + `sources: [1]` = factures électroniques arrivées sans ressource, à rattacher avec `boond_provider_invoices_update` (`resourceId`).",
+      when: "pour suivre les factures d'achat, par fournisseur, ressource, état, origine (saisie manuelle / facture électronique reçue), période ou montant (`amountType` + `amount` ou `amountMin` / `amountMax`, **avec `amountCurrency`** sinon Boond ignore le filtre) ; `withoutResource: true` + `sources: [1]` = factures électroniques arrivées sans ressource, à rattacher avec `boond_provider_invoices_update` (`resourceId`).",
       instead:
         "`boond_invoices_search` pour les factures de vente adressées aux clients — sens opposé, endpoint distinct.",
       returns:
@@ -172,10 +172,10 @@ export function registerProviderInvoiceTools(server: McpServer): void {
       when: "pour changer l'état, corriger une période ou un montant, rattacher une facture électronique reçue sans ressource (`resourceId`), rattacher / détacher le fournisseur, ou lier la facture à ses achats (`payments`).",
       instead: "`boond_provider_invoices_create` pour enregistrer une nouvelle facture.",
       behaviour: [
-        "`PUT /provider-invoices/{id}` vérifié sur une instance réelle avec `resourceId` (ressource changée puis remise, autres champs intacts) ; `provider` non vérifié.",
+        "`PUT /provider-invoices/{id}` exercé en production avec `resourceId` seul (ressource changée puis remise, autres champs intacts) ; les autres champs, dont `provider`, ne l'ont pas été.",
         "`provider` envoie `providerCompany` et `providerContact` ensemble (la doc de l'API les exige ensemble) ; `provider: null` retire les deux.",
-        "`payments` (doc de l'API, non vérifié) : enregistré quand la facture a une ressource et que la requête la valide, ou seul pour une facture sans ressource ; remplacement ou ajout à la liste existante non vérifié, relire la facture.",
-        "`paidDate` et `dueDate` ne figurent pas dans la doc de modification : l'API peut les ignorer, relire la facture.",
+        "`payments` (doc de l'API, non vérifié) : enregistré quand la facture a une ressource et que la requête la valide, ou seul pour une facture sans ressource ; un paiement sans `id` en crée un nouveau à chaque appel (ne pas rejouer l'appel) ; remplacement ou ajout à la liste existante non vérifié, relire la facture.",
+        "`paidDate` et `dueDate` ne figurent pas dans la doc de modification : l'API peut les ignorer ou refuser la requête, relire la facture.",
         "`mainManagerId`, `agencyId`, `poleId` / `billingDetailId` (`null` retire), `stateReason`, devise et taux suivent la doc de l'API, non vérifiés.",
       ],
       returns: "confirmation et fiche de la facture fournisseur modifiée.",

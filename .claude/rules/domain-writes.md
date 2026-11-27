@@ -172,8 +172,9 @@ attribute the API ignored.
 "have to be set" once the other is — hence the update schema's single
 `provider: { companyId, contactId } | null`. It documents **no `resource`**
 (only `bodyPost.json` and the read `profile.json` carry it), yet the API
-applies an undocumented `relationships.resource` on PUT: exercised on a
-production tenant (2026-11-26) by moving an invoice from one resource to
+applies an undocumented `relationships.resource` on PUT: exercised on the
+production tenant (2026-11-26, no sandbox, with the owner's approval — the
+maintainer's rule forbids test writes there, said here so it is visible) by moving an invoice from one resource to
 another and back, each change visible on re-read, other attributes intact.
 That is `resourceId` on the update tool, the way to attach an e-invoice
 received without a resource. This also confirms the verb and route (`PUT`
@@ -196,7 +197,11 @@ the search, `columns` (UI columns, no effect on the data) and
 `exportToDownloadCenter` / `exportFormat` (they create an export job, a side
 effect a read-only search tool must not have). The `typeOf` that
 bodyPost.json lists as required has no matching property in the schema; it is
-not sent. List rows (60 read live, 2026-11-26) carry `vatNumber` (set on 10,
+not sent. Search filters added for the full coverage were checked read-only on
+2026-11-27 against expected row counts (`src/schemas/index.ts`, above
+`ProviderInvoiceSearchSchema`): the amount filters are **ignored without
+`amountCurrency`**; `withoutCompany` could not be told apart from the baseline.
+List rows (60 read live, 2026-11-26) carry `vatNumber` (set on 10,
 four distinct values, none the tenant's own: the supplier's) and, when set,
 `resource`; none carried `providerCompany`, which is why the search
 summary shows the VAT number and not the supplier's name.

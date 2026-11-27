@@ -235,7 +235,7 @@ describe("provider invoice search (filters verified live 2026-11-26)", () => {
   });
 });
 
-describe("provider invoice search, RAML-only filters (not exercised live)", () => {
+describe("provider invoice search, filters checked read-only on 2026-11-27 (see the schema comment)", () => {
   it("forwards the amount, custom period and multi-id filters of the RAML search.raml", async () => {
     const { apiSearch } = await import("../services/boond-client.js");
     const { toolCallback } = await import("./test-helpers.js");
@@ -528,5 +528,65 @@ describe("providerInvoiceSummary VAT number", () => {
         relationships: { agency: { data: { id: "1", type: "agency" } } },
       } as never)
     ).toBe("[providerinvoice #145] | Réf: F-9 | Source: électronique | TVA: FR00123456789 | Sans ressource");
+  });
+});
+
+describe("provider invoice handlers, remaining documented fields", () => {
+  it("sends stateReason and creationDate through boond_provider_invoices_update", async () => {
+    const { toolCallback } = await import("./test-helpers.js");
+    vi.mocked(apiRequest).mockClear();
+    vi.mocked(apiRequest).mockResolvedValue({ data: { id: "12", type: "providerinvoice", attributes: {} } } as never);
+    const server = createMockServer();
+    registerProviderInvoiceTools(server);
+    await toolCallback(
+      server,
+      "boond_provider_invoices_update"
+    )({ id: "12", stateReason: { typeOf: 2, detail: "montant" }, creationDate: "2026-11-26T12:04:16+0100" });
+    expect(apiRequest).toHaveBeenLastCalledWith("/provider-invoices/12", "PUT", {
+      data: {
+        type: "providerinvoice",
+        id: "12",
+        attributes: { stateReason: { typeOf: 2, detail: "montant" }, creationDate: "2026-11-26T12:04:16+0100" },
+      },
+    });
+  });
+
+  it("POSTs payments by delivery and stateReason through boond_provider_invoices_create", async () => {
+    const { toolCallback } = await import("./test-helpers.js");
+    vi.mocked(apiRequest).mockClear();
+    vi.mocked(apiRequest).mockResolvedValue({ data: { id: "13", type: "providerinvoice", attributes: {} } } as never);
+    const server = createMockServer();
+    registerProviderInvoiceTools(server);
+    await toolCallback(
+      server,
+      "boond_provider_invoices_create"
+    )({
+      reference: "F-2",
+      resourceId: "9",
+      startDate: "2026-11-01",
+      endDate: "2026-11-30",
+      state: 0,
+      stateReason: { typeOf: 1 },
+      payments: [{ deliveryId: "8", state: 1, amountExcludingTax: 100 }],
+    });
+    expect(apiRequest).toHaveBeenLastCalledWith("/provider-invoices", "POST", {
+      data: {
+        type: "providerinvoice",
+        attributes: {
+          reference: "F-2",
+          startDate: "2026-11-01",
+          endDate: "2026-11-30",
+          state: 0,
+          stateReason: { typeOf: 1 },
+          payments: [{ deliveryId: "8", state: 1, amountExcludingTax: 100 }],
+        },
+        relationships: { resource: { data: { id: "9", type: "resource" } } },
+      },
+    });
+  });
+
+  it("tells the model that the amount filter needs amountCurrency", async () => {
+    const { ProviderInvoiceSearchSchema } = await import("../schemas/index.js");
+    expect(ProviderInvoiceSearchSchema.shape.amountCurrency.description).toMatch(/Obligatoire avec `amountType`/);
   });
 });
