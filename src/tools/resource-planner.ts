@@ -72,29 +72,55 @@ interface Included {
   relationships?: Record<string, { data?: { id: string; type: string } | Array<{ id: string; type: string }> | null }>;
 }
 
-interface PlannerRow {
-  project?: string;
-  resource?: string;
-  delivery?: { id?: string; title?: string; startDate?: string; endDate?: string };
-  opportunity?: string;
-  workUnitType?: string;
-  days: number;
-  dates: string[];
-  comments?: string[];
-}
+/** One planner row: its labels (project or resource, delivery, …) then the counters. */
+export type PlannerRow = Record<string, unknown> & { days: number; dates: string[]; comments?: string[] };
 
 function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
+/** Drop absent and empty values: BoondManager sends `title: ""`, `batch: null`. */
+function compact(o: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== ""));
+}
+
 function personName(ref: Ref | undefined): string | undefined {
-  if (!ref) return undefined;
-  const name = [ref.firstName, ref.lastName].filter(Boolean).join(" ");
-  return name || ref.id;
+  const name = [ref?.firstName, ref?.lastName].filter(Boolean).join(" ");
+  return name || ref?.id;
 }
 
 function round(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+type GroupBy = "project" | "resource";
+
+function rowKey(t: PlannedTime, by: GroupBy): string {
+  const who = by === "project" ? t.project?.id : t.resource?.id;
+  return [t.row, t.delivery?.id, t.batch?.id, t.workUnitType?.name, who].map((v) => v ?? "").join("|");
+}
+
+function rowLabels(t: PlannedTime, by: GroupBy): Record<string, unknown> {
+  const d = t.delivery;
+  return compact({
+    [by]: by === "project" ? (t.project?.reference ?? t.project?.id) : personName(t.resource),
+    delivery: d ? compact({ id: d.id, title: d.title, startDate: d.startDate, endDate: d.endDate }) : undefined,
+    opportunity: t.opportunity?.reference,
+    workUnitType: t.workUnitType?.name,
+  });
+}
+
+interface Accumulator {
+  labels: Record<string, unknown>;
+  days: number;
+  dates: string[];
+  comments: string[];
+}
+
+function accumulate(acc: Accumulator, t: PlannedTime): void {
+  acc.days = round(acc.days + (t.duration ?? 0));
+  if (t.startDate) acc.dates.push(t.startDate);
+  if (t.comment) acc.comments.push(`${t.startDate ?? "?"}: ${t.comment}`);
 }
 
 /**
@@ -103,67 +129,49 @@ function round(n: number): number {
  * planned dates. A month of a full-time resource is ~20 entries per row, each
  * repeating the same project / delivery / opportunity objects.
  */
-export function groupPlannedTimes(times: PlannedTime[], by: "project" | "resource"): PlannerRow[] {
-  const rows = new Map<string, PlannerRow>();
+export function groupPlannedTimes(times: PlannedTime[], by: GroupBy): PlannerRow[] {
+  const groups = new Map<string, Accumulator>();
   for (const t of times) {
-    const key = `${t.row ?? ""}|${t.delivery?.id ?? ""}|${t.batch?.id ?? ""}|${t.workUnitType?.name ?? ""}|${
-      by === "project" ? (t.project?.id ?? "") : (t.resource?.id ?? "")
-    }`;
-    let row = rows.get(key);
-    if (!row) {
-      const label = by === "project" ? (t.project?.reference ?? t.project?.id) : personName(t.resource);
-      // Label first so the rendered JSON reads "project, delivery, …, days, dates".
-      row = { ...(label !== undefined ? { [by]: label } : {}), days: 0, dates: [] };
-      if (t.delivery) {
-        const delivery: NonNullable<PlannerRow["delivery"]> = {};
-        if (t.delivery.id) delivery.id = t.delivery.id;
-        if (t.delivery.title) delivery.title = t.delivery.title;
-        if (t.delivery.startDate) delivery.startDate = t.delivery.startDate;
-        if (t.delivery.endDate) delivery.endDate = t.delivery.endDate;
-        row.delivery = delivery;
-      }
-      if (t.opportunity?.reference) row.opportunity = t.opportunity.reference;
-      if (t.workUnitType?.name) row.workUnitType = t.workUnitType.name;
-      // Re-append the counters after the labels for a readable key order.
-      const { days, dates, ...labels } = row;
-      row = { ...labels, days, dates };
-      rows.set(key, row);
+    const key = rowKey(t, by);
+    let acc = groups.get(key);
+    if (!acc) {
+      acc = { labels: rowLabels(t, by), days: 0, dates: [], comments: [] };
+      groups.set(key, acc);
     }
-    row.days = round(row.days + (typeof t.duration === "number" ? t.duration : 0));
-    if (t.startDate) row.dates.push(t.startDate);
-    if (t.comment) (row.comments ??= []).push(`${t.startDate ?? "?"}: ${t.comment}`);
+    accumulate(acc, t);
   }
-  for (const row of rows.values()) row.dates.sort();
-  return [...rows.values()];
+  // Labels first so the rendered JSON reads "project, delivery, …, days, dates".
+  return [...groups.values()].map(({ labels, days, dates, comments }) => ({
+    ...labels,
+    days,
+    dates: dates.sort(),
+    ...(comments.length > 0 ? { comments } : {}),
+  }));
 }
 
 function includedOf(response: { included?: unknown }, type: string): Included[] {
   return asArray<Included>(response.included).filter((i) => i.type === type);
 }
 
-function nameById(response: { included?: unknown }, type: string, attr = "name"): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const i of includedOf(response, type)) {
-    const v = i.attributes?.[attr];
-    if (typeof v === "string") map.set(i.id, v);
-  }
-  return map;
+function singleId(rel: Included["relationships"], name: string): string | undefined {
+  const data = rel?.[name]?.data;
+  return data && !Array.isArray(data) ? data.id : undefined;
 }
+
+const PROJECT_FIGURES = ["signedTime", "takenTimeToJ", "plannedTimeFromJ", "workUnitRate", "mode", "typeOf"];
 
 /** Monthly figures BoondManager computes per project (signed / consumed / still planned). */
 function projectFigures(response: { included?: unknown }): Array<Record<string, unknown>> {
-  const companies = nameById(response, "company");
+  const companies = new Map(includedOf(response, "company").map((c) => [c.id, c.attributes?.name]));
   return includedOf(response, "appresourceplannerproject").map((p) => {
     const a = p.attributes ?? {};
-    const companyRel = p.relationships?.company?.data;
-    const companyId = companyRel && !Array.isArray(companyRel) ? companyRel.id : undefined;
-    const out: Record<string, unknown> = { id: p.id, reference: a.reference };
-    const company = companyId ? companies.get(companyId) : undefined;
-    if (company) out.company = company;
-    for (const k of ["signedTime", "takenTimeToJ", "plannedTimeFromJ", "workUnitRate", "mode", "typeOf"]) {
-      if (a[k] !== undefined) out[k] = a[k];
-    }
-    return out;
+    const companyId = singleId(p.relationships, "company");
+    return compact({
+      id: p.id,
+      reference: a.reference,
+      company: companyId ? companies.get(companyId) : undefined,
+      ...Object.fromEntries(PROJECT_FIGURES.map((k) => [k, a[k]])),
+    });
   });
 }
 
@@ -184,39 +192,39 @@ function entityOf(response: PlannerResponse): { id?: string; attributes: Record<
   return { ...(d.id !== undefined ? { id: d.id } : {}), attributes: d.attributes ?? {} };
 }
 
-export function summariseResourcePlanning(response: PlannerResponse): string {
+/** Shared shape of both summaries: header fields, grand total, grouped rows, extras. */
+function summarise(
+  response: PlannerResponse,
+  by: GroupBy,
+  header: (a: Record<string, unknown>) => Record<string, unknown>,
+  extras: (a: Record<string, unknown>) => Record<string, unknown> = () => ({})
+): string {
   const entity = entityOf(response);
   if (!entity) return "Planning non trouvé.";
   const a = entity.attributes;
-  const times = asArray<PlannedTime>(a.plannedTimes);
-  const rows = groupPlannedTimes(times, "project");
+  const rows = groupPlannedTimes(asArray<PlannedTime>(a.plannedTimes), by);
   return render({
     id: entity.id,
-    resource: [a.firstName, a.lastName].filter(Boolean).join(" ") || undefined,
+    ...header(a),
     term: a.term,
     validationDate: a.validationDate,
-    totalPlannedDays: round(rows.reduce((s, r) => s + r.days, 0)),
+    totalPlannedDays: round(rows.reduce((sum, r) => sum + r.days, 0)),
     rows,
-    absencesTimes: asArray(a.absencesTimes),
-    projects: projectFigures(response),
+    ...extras(a),
   });
 }
 
+export function summariseResourcePlanning(response: PlannerResponse): string {
+  return summarise(
+    response,
+    "project",
+    (a) => ({ resource: personName({ firstName: a.firstName, lastName: a.lastName } as Ref) }),
+    (a) => ({ absencesTimes: asArray(a.absencesTimes), projects: projectFigures(response) })
+  );
+}
+
 export function summariseProjectPlanning(response: PlannerResponse): string {
-  const entity = entityOf(response);
-  if (!entity) return "Planning non trouvé.";
-  const a = entity.attributes;
-  const times = asArray<PlannedTime>(a.plannedTimes);
-  const rows = groupPlannedTimes(times, "resource");
-  return render({
-    id: entity.id,
-    reference: a.reference,
-    term: a.term,
-    validationDate: a.validationDate,
-    workUnitRate: a.workUnitRate,
-    totalPlannedDays: round(rows.reduce((s, r) => s + r.days, 0)),
-    rows,
-  });
+  return summarise(response, "resource", (a) => ({ reference: a.reference, workUnitRate: a.workUnitRate }));
 }
 
 const READ_ANNOTATIONS = {
