@@ -67,9 +67,10 @@ now comes from a single template that cannot drift per domain.
 roles, etc.) register only search + get with direct `server.registerTool()`
 calls.
 
-**JSON:API body builder**: `buildJsonApiBody(type, attributes, id?)` in
-crud-factory.ts builds the `{ data: { type, attributes } }` payload.
-Filters out undefined values.
+**JSON:API body builder**: `buildJsonApiBody(type, attributes, id?, relationships?)` in
+crud-factory.ts builds the `{ data: { type, attributes, relationships? } }` payload.
+Filters out undefined values; a relationship set to `undefined` is omitted, one set to
+`null` is sent as `{ data: null }`, which **clears** the link (provider invoices' `provider: null`).
 
 ## Tool Naming Convention
 

@@ -154,15 +154,60 @@ factory. Routes: `PUT /purchases/{id}/information` is documented
 (`purchases/information.raml`); contracts, deliveries, payments and provider
 invoices have **no** `information.raml` on the doc site (404, checked
 2026-09-26), so they PUT the base resource — the pattern `/actions/{id}` and
-`/times-reports/{id}` follow. **None of these five write paths has been
-exercised** (production tenant): the schemas are attribute-only
-(`models.<entity>` in the dictionary), never move a relationship, and their
+`/times-reports/{id}` follow. **Four of these five write paths have not been
+exercised** (provider invoices: `PUT` on the base resource confirmed
+2026-11-26 with `resourceId`, see below): the schemas are attribute-only
+(`models.<entity>` in the dictionary), never move a relationship (except the
+provider-invoice `provider` and `resourceId`, below), and their
 `state` is `stateField` (rows in `state-writability.test.ts`). The first
 write against a test tenant should confirm the verb (a 405 means
 `/information` is expected) and fix this paragraph. `note` maps to
 `informationComments` on contracts and purchases — `models.contract` /
 `models.purchase` have no `note`, so the create tools were sending an
 attribute the API ignored.
+
+**Provider invoices: supplier and resource.** The RAML's
+`providerInvoices/bodyPut.json` documents `providerCompany` and
+`providerContact` on `PUT /provider-invoices/{id}`, each nullable, each
+"have to be set" once the other is — hence the update schema's single
+`provider: { companyId, contactId } | null`. It documents **no `resource`**
+(only `bodyPost.json` and the read `profile.json` carry it), yet the API
+applies an undocumented `relationships.resource` on PUT: exercised on the
+production tenant (2026-11-26, no sandbox, with the owner's approval) by moving an invoice from one resource to
+another and back, each change visible on re-read, other attributes intact.
+That is `resourceId` on the update tool, the way to attach an e-invoice
+received without a resource. This also confirms the verb and route (`PUT`
+on the base resource, not `/information`) for provider invoices. Still not
+exercised: the `provider` write. The same RAML pairing applies to
+`bodyPost.json`, so the create body builder refuses `companyId` without
+`contactId` and the reverse. `paidDate` / `dueDate` are read attributes
+(`profile.json`) but absent from `bodyPut.json`: kept on the update schema,
+flagged as possibly ignored. `payments` (bodyPut: `{ id?, state,
+amountExcludingTax, amountIncludingTax, taxRate, purchase: { id } }`, saved
+when the invoice has a resource and the request validates it, or alone on an
+invoice without resource) is exposed as `purchaseId` mapped to `purchase.id`;
+not exercised, including whether the array replaces the invoice's existing
+payments or adds to them. An item without `id` creates a payment on every call,
+so a retried update can duplicate it: the description says so, but the tool
+keeps `idempotentHint: true`, which the access policy reads as the "update"
+operation class (`access-policy.ts`); flipping it would move the tool to
+"create" for every profile. Everything else in bodyPost.json / bodyPut.json is exposed too
+(`mainManagerId`, `agencyId`, nullable `poleId` / `billingDetailId`,
+`stateReason`, create-side `payments` by `deliveryId`, update-side
+`creationDate`, currency and rates), none exercised. Not exposed on purpose:
+`tmpFile` (the MCP has no way to obtain a temporary file id for it) and, on
+the search, `columns` (UI columns, no effect on the data) and
+`exportToDownloadCenter` / `exportFormat` (they create an export job, a side
+effect a read-only search tool must not have). The `typeOf` that
+bodyPost.json lists as required has no matching property in the schema; it is
+not sent. Search filters added for the full coverage were checked read-only on
+2026-11-27 against expected row counts (`src/schemas/index.ts`, above
+`ProviderInvoiceSearchSchema`): the amount filters are **ignored without
+`amountCurrency`**; `withoutCompany` could not be told apart from the baseline.
+List rows (60 read live, 2026-11-26) carry `vatNumber` (set on 10,
+four distinct values, none the tenant's own: the supplier's) and, when set,
+`resource`; none carried `providerCompany`, which is why the search
+summary shows the VAT number and not the supplier's name.
 
 **Order correlations (`deliveriesPurchases`)**: the deliveries and purchases
 ticked in the UI's "Prestations / Achats corrélés" block. `GET /orders/{id}`
