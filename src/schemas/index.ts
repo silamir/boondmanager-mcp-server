@@ -2611,7 +2611,8 @@ export const DictionaryGetSchema = z
 //
 // Types de parent connus de `POST /documents`, repris dans la description de
 // l'outil pour guider le modèle. La liste n'est PAS une garde : `parentType`
-// est transmis tel quel à BoondManager, qui reste l'autorité sur les types
+// est transmis tel quel à BoondManager (sauf la casse d'un type documenté,
+// ramenée à sa graphie exacte, voir `canonicalDocumentParentType`), qui reste l'autorité sur les types
 // qu'il accepte (un type inconnu est refusé par l'API, rien n'est écrit). Une
 // liste figée côté MCP refusait des entités que l'API gère (besoins /
 // opportunités, positionnements...) tant qu'elle n'avait pas été complétée.
@@ -2642,6 +2643,50 @@ export const DocumentParentTypes = [
   "opportunity",
 ] as const;
 
+/** Ce que désigne chaque type (RAML `documents/search.raml`, `opportunity` en plus). */
+export const DocumentParentTypeLabels: Readonly<Record<(typeof DocumentParentTypes)[number], string>> = {
+  action: "action",
+  resourceResume: "CV de ressource",
+  candidateResume: "CV de candidat",
+  resource: "dossier administratif de ressource",
+  candidate: "dossier administratif de candidat",
+  expensesReport: "justificatif de note de frais",
+  timesReport: "justificatif de CRA",
+  absencesReport: "justificatif de demande d'absence",
+  payment: "justificatif de paiement",
+  company: "société",
+  project: "projet",
+  order: "bon de commande",
+  product: "produit",
+  purchase: "achat",
+  delivery: "prestation",
+  groupment: "regroupement",
+  inactivity: "inactivité",
+  positioning: "positionnement",
+  followeddocument: "document suivi",
+  appentity: "entité d'application",
+  contract: "contrat",
+  invoice: "facture client",
+  providerinvoice: "facture fournisseur",
+  opportunity: "besoin / AO",
+};
+
+/** `type` (libellé), … — la liste montrée au modèle, générée depuis la table ci-dessus. */
+export const DOCUMENT_PARENT_TYPES_HELP = DocumentParentTypes.map(
+  (t) => `\`${t}\` (${DocumentParentTypeLabels[t]})`
+).join(", ");
+
+/**
+ * La graphie documentée d'un type connu, quelle que soit la casse reçue. Observé
+ * pour un seul type (27/11/2026) : l'API refuse `providerInvoice` (422) et accepte
+ * `providerinvoice`. Pour les autres, la graphie vient du RAML, non exercée une à
+ * une. Un type inconnu est renvoyé tel quel.
+ */
+export function canonicalDocumentParentType(raw: string): string {
+  const lower = raw.toLowerCase();
+  return DocumentParentTypes.find((t) => t.toLowerCase() === lower) ?? raw;
+}
+
 /** Forme d'un identifiant de type d'entité : un mot alphanumérique, sans séparateur ni espace. */
 export const DOCUMENT_PARENT_TYPE_PATTERN = /^[A-Za-z][A-Za-z0-9]{0,63}$/;
 
@@ -2654,10 +2699,9 @@ export const DocumentCreateSchema = z
         "parentType : un mot alphanumérique (ex. 'opportunity', 'candidateResume'), sans espace ni séparateur."
       )
       .describe(
-        "Type d'entité parente, tel que l'attend l'API BoondManager. Notables : 'candidateResume' (CV de candidat), " +
-          "'resourceResume' (CV de ressource), 'candidate'/'resource' (dossier administratif), 'opportunity' (besoin / AO), " +
-          "'positioning', 'company', 'project', 'order', 'invoice', 'action'... " +
-          "Un type hors de cette liste est transmis tel quel ; l'API le valide et refuse un type inconnu."
+        "Type d'entité parente, graphie exacte de l'API (la casse compte) : " +
+          DOCUMENT_PARENT_TYPES_HELP +
+          ". Un type hors de cette liste est transmis tel quel ; l'API le valide et refuse un type inconnu."
       ),
     parentId: z.number().int().min(1).describe("ID de l'entité parente"),
     fileUrl: z

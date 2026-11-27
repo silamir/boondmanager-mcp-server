@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`boond_documents_create` : `parentType` avec la bonne casse.** Sur une instance réelle, l'API a refusé `providerInvoice` (422) et accepté `providerinvoice`, la graphie de sa doc, alors que la doc écrit la plupart des noms composés en camelCase et trois tout en minuscules (`providerinvoice`, `followeddocument`, `appentity`). Un type documenté reçu avec une autre casse est ramené à sa graphie exacte avant l'envoi (une erreur de casse ne coûte plus un slot du relais) et la réponse le signale ; un type inconnu reste transmis tel quel. Le champ `parentType` liste désormais tous les types documentés avec ce qu'ils désignent (facture fournisseur, prestation, achat…), et un 422 de Boond sur `parentType` renvoie cette liste au lieu du seul message de l'API. Seul `providerinvoice` a été exercé (27/11/2026) ; pour les autres types, la graphie vient de la doc RAML. Un 422 sur `parentType` avec un type documenté renvoie d'abord à `parentId`, en rappelant que seule cette graphie-là a été exercée.
+
 ## [2.20.0] - 2026-11-26
 
 ### Added

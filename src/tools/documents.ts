@@ -1,8 +1,21 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { apiDownload, apiUploadForm, formatDetailResponse, DownloadTooLargeError } from "../services/boond-client.js";
+import {
+  apiDownload,
+  apiUploadForm,
+  BoondApiError,
+  formatDetailResponse,
+  DownloadTooLargeError,
+} from "../services/boond-client.js";
 import { progressReporterFrom } from "../services/progress.js";
 import { z } from "zod";
-import { DocumentGetSchema, DocumentCreateSchema, DocumentUploadSlotSchema } from "../schemas/index.js";
+import {
+  canonicalDocumentParentType,
+  DOCUMENT_PARENT_TYPES_HELP,
+  DocumentParentTypes,
+  DocumentGetSchema,
+  DocumentCreateSchema,
+  DocumentUploadSlotSchema,
+} from "../schemas/index.js";
 import type { DocumentGetInput, DocumentCreateInput, DocumentUploadSlotInput } from "../schemas/index.js";
 import { uploadRelay } from "../services/upload-relay.js";
 import type { ClaimedUpload } from "../services/upload-relay.js";
@@ -220,9 +233,9 @@ Returns: \`uploadSlot\`, \`uploadUrl\`, \`expiresAt\`, \`maxBytes\`, \`fileName\
 - \`uploadSlot\` : fichier déposé sur un slot de \`boond_documents_upload_slot\` — **la voie pour une pièce jointe de conversation** ;
 - \`fileContent\` (base64) + \`fileName\` : petit fichier inline, ${Math.round(INLINE_UPLOAD_MAX_BYTES / 1024 / 1024)} Mo max, réservé à un appelant qui détient déjà les octets exacts (un modèle ne retranscrit pas fiablement une pièce jointe en base64).
 
-Le format est vérifié sur les premiers octets du fichier (PDF, Office, ODF, RTF, images), pas sur l'extension. Cas d'usage typiques : CV d'un candidat (parentType=candidateResume, parsing=true pour l'analyse IA Boond), pièce jointe d'un besoin / AO (parentType=opportunity), d'un positionnement (positioning), justificatif de note de frais (expensesReport), bon de commande, contrat...
+Le format est vérifié sur les premiers octets du fichier (PDF, Office, ODF, RTF, images), pas sur l'extension. Cas d'usage typiques : CV d'un candidat (parentType=candidateResume, parsing=true pour l'analyse IA Boond), pièce jointe d'un besoin / AO (opportunity), justificatif de note de frais (expensesReport), facture fournisseur (providerinvoice, tout en minuscules).
 
-\`parentType\` n'est pas limité à une liste fermée : il est transmis tel quel à BoondManager, qui valide le type. Un type que l'API ne gère pas est refusé sans rien écrire.
+\`parentType\` : la casse compte pour l'API (\`providerinvoice\`, pas \`providerInvoice\`). Un type documenté écrit avec une autre casse est ramené à sa graphie exacte avant tout envoi, et la réponse le signale ; un autre type est transmis tel quel et l'API refuse un type inconnu sans rien écrire (la réponse liste alors les types documentés).
 
 Returns: Métadonnées du document créé (ID).`,
       inputSchema: DocumentCreateSchema,
@@ -236,6 +249,11 @@ Returns: Métadonnées du document créé (ID).`,
     },
     async (params: DocumentCreateInput) => {
       const reject = (text: string) => ({ isError: true, content: [{ type: "text" as const, text: `❌ ${text}` }] });
+
+      // Before anything reads or consumes a file: the documented spelling of a known type.
+      const parentType = canonicalDocumentParentType(params.parentType);
+      const corrected =
+        parentType !== params.parentType ? `\nparentType corrigé : « ${params.parentType} » → « ${parentType} ».` : "";
 
       const sources = [params.fileUrl, params.filePath, params.fileContent, params.uploadSlot].filter(
         (v) => v !== undefined
@@ -266,7 +284,7 @@ Returns: Métadonnées du document créé (ID).`,
       }
 
       const fields: Record<string, string> = {
-        parentType: params.parentType,
+        parentType,
         parentId: String(params.parentId),
       };
       if (params.fileUrl !== undefined) fields.fileUrl = params.fileUrl;
@@ -280,6 +298,17 @@ Returns: Métadonnées du document créé (ID).`,
           file === undefined
             ? await apiUploadForm("/documents", fields)
             : await apiUploadForm("/documents", fields, file);
+      } catch (error) {
+        // Boond's 422 names the parameter but not what it expects: list the documented types.
+        if (error instanceof BoondApiError && error.status === 422 && /\(parameter: parentType\)/.test(error.message)) {
+          const documented = (DocumentParentTypes as readonly string[]).includes(parentType);
+          const advice = documented
+            ? `Le type « ${parentType} » figure dans la doc de l'API : vérifier d'abord que \`parentId\` désigne une entité existante de ce type. ` +
+              "La graphie de ce type vient de la doc et n'a été exercée que pour `providerinvoice` : si `parentId` est correct, signaler le refus plutôt que d'essayer d'autres graphies (le MCP les ramènerait à celle-ci)."
+            : `Type refusé : « ${parentType} ». Types documentés (casse exacte) : ${DOCUMENT_PARENT_TYPES_HELP}.`;
+          return reject(`${advice}${corrected}\n\n${error.message}`);
+        }
+        throw error;
       } finally {
         // Boond has fetched the file (or failed): purge the relay copy either way.
         if (relayed !== undefined) await relayed.release().catch(() => undefined);
@@ -298,7 +327,7 @@ Returns: Métadonnées du document créé (ID).`,
         content: [
           {
             type: "text" as const,
-            text: `✅ Document créé avec succès.\nID: ${entity?.id}${sent}\n\n${formatDetailResponse(response)}`,
+            text: `✅ Document créé avec succès.\nID: ${entity?.id}${sent}${corrected}\n\n${formatDetailResponse(response)}`,
           },
         ],
         structuredContent: structured,
