@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.21.0] - 2026-11-27
+
+Relais d'upload Google Drive pour `boond_documents_upload_slot`, factures fournisseur alignées sur toute la doc de l'API (rattachement d'une ressource ou du fournisseur en modification, nouveaux filtres de recherche) et `parentType` de `boond_documents_create` envoyé avec la casse attendue par l'API. Aucun nom d'outil ne change. Catalogue : 238 outils.
+
 ### Added
 
 - **`boond_provider_invoices_update` rattache ou détache le fournisseur** : nouveau champ `provider: { companyId, contactId }` envoyé en `relationships.providerCompany` / `providerContact` (la doc de l'API, `providerInvoices/bodyPut.json`, exige les deux ensemble), et `provider: null` pour retirer les deux. Écriture jamais exercée sur une instance réelle.
