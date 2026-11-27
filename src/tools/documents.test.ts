@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerDocumentTools } from "./documents.js";
-import { apiDownload, apiUploadForm, DownloadTooLargeError } from "../services/boond-client.js";
+import { apiDownload, apiUploadForm, BoondApiError, DownloadTooLargeError } from "../services/boond-client.js";
 import { MAX_DOCUMENT_BYTES, MAX_IMAGE_BYTES, CHARACTER_LIMIT } from "../constants.js";
 import { buildPdf, buildZip } from "../services/document-text.test.js";
 import { readLocalUpload, UploadRejectedError } from "../services/upload-source.js";
 import { uploadRelay } from "../services/upload-relay.js";
-import { DocumentCreateSchema, DocumentParentTypes } from "../schemas/index.js";
+import { canonicalDocumentParentType, DocumentCreateSchema, DocumentParentTypes } from "../schemas/index.js";
 
 vi.mock("../services/upload-relay.js", () => ({
   uploadRelay: { open: vi.fn(), claim: vi.fn() },
@@ -287,16 +287,76 @@ describe("registerDocumentTools", () => {
       }
     );
 
-    it("lists the besoin / positioning types in the tool description", () => {
+    it("shows every documented type, with its exact spelling, to the model", () => {
       registerDocumentTools(server);
       const call = vi.mocked(server.registerTool).mock.calls.find((c) => c[0] === "boond_documents_create");
       const config = call?.[1] as { description: string };
-      expect(config.description).toContain("parentType=opportunity");
-      expect(config.description).toContain("positioning");
+      expect(config.description).toContain("parentType=candidateResume");
+      expect(config.description).toContain("providerinvoice");
+      expect(config.description).toMatch(/casse compte/);
+      const field = DocumentCreateSchema.shape.parentType.description ?? "";
+      for (const type of DocumentParentTypes) expect(field, type).toContain(`\`${type}\``);
+      expect(field).toContain("`providerinvoice` (facture fournisseur)");
+    });
+
+    it("maps a documented type written with another case to its exact spelling, and only those", () => {
+      expect(canonicalDocumentParentType("providerInvoice")).toBe("providerinvoice");
+      expect(canonicalDocumentParentType("PROVIDERINVOICE")).toBe("providerinvoice");
+      expect(canonicalDocumentParentType("expensesreport")).toBe("expensesReport");
+      expect(canonicalDocumentParentType("candidateResume")).toBe("candidateResume");
+      expect(canonicalDocumentParentType("somethingElse")).toBe("somethingElse");
     });
   });
 
   describe("boond_documents_create handler", () => {
+    it("sends the documented spelling of the parent type and says it corrected it", async () => {
+      vi.mocked(apiUploadForm).mockResolvedValue({
+        data: { id: "151_providerinvoicedocument", type: "providerinvoicedocument", attributes: {} },
+      });
+      registerDocumentTools(server);
+      const result = await handlerOf(
+        server,
+        "boond_documents_create"
+      )({ parentType: "providerInvoice", parentId: 150, fileUrl: "https://example.com/f.pdf" });
+      expect(apiUploadForm).toHaveBeenCalledWith("/documents", {
+        parentType: "providerinvoice",
+        parentId: "150",
+        fileUrl: "https://example.com/f.pdf",
+      });
+      expect(result.content[0].text).toContain("parentType corrigé : « providerInvoice » → « providerinvoice »");
+    });
+
+    it("forwards an unknown type unchanged and lists the documented ones when Boond refuses it", async () => {
+      vi.mocked(apiUploadForm).mockRejectedValue(
+        new BoondApiError(
+          "BoondManager API 422 : 1002 - Wrong or missing attribute (parameter: parentType)",
+          422,
+          "POST",
+          "/documents"
+        )
+      );
+      registerDocumentTools(server);
+      const result = await handlerOf(
+        server,
+        "boond_documents_create"
+      )({ parentType: "supplierBill", parentId: 150, fileUrl: "https://example.com/f.pdf" });
+      expect(vi.mocked(apiUploadForm).mock.calls[0]?.[1]).toMatchObject({ parentType: "supplierBill" });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("Type refusé : « supplierBill »");
+      expect(result.content[0].text).toContain("`providerinvoice` (facture fournisseur)");
+    });
+
+    it("rethrows other Boond errors untouched", async () => {
+      vi.mocked(apiUploadForm).mockRejectedValue(new BoondApiError("BoondManager API 403", 403, "POST", "/documents"));
+      registerDocumentTools(server);
+      await expect(
+        handlerOf(
+          server,
+          "boond_documents_create"
+        )({ parentType: "resource", parentId: 1, fileUrl: "https://e.com/f.pdf" })
+      ).rejects.toThrow(/403/);
+    });
+
     it("uploads via multipart form fields and returns the created id", async () => {
       vi.mocked(apiUploadForm).mockResolvedValue({
         data: { id: "777", type: "document", attributes: {} },

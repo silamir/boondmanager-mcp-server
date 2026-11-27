@@ -71,6 +71,18 @@ halves of that exception have to stay together (issue #186):
   still work. Rejecting the suffixed id without this guard is what made the
   failure silent, hence: don't remove one without the other.
 
+**`parentType` spelling** (`canonicalDocumentParentType`, `src/schemas/index.ts`):
+BoondManager compares the type case-sensitively — observed 2026-11-27,
+`providerInvoice` → 422 `parameter: parentType`, `providerinvoice` → document
+created. The RAML list (`documents/search.raml`) mixes camelCase
+(`expensesReport`) and all-lowercase (`providerinvoice`, `followeddocument`,
+`appentity`), so a model guesses wrong. The handler maps a case-insensitive
+match of `DocumentParentTypes` to its documented spelling **before** any file
+is read or a relay slot consumed, and says so in the result; anything else
+still goes through untouched (the list is guidance, not a guard). The field
+description is generated from `DocumentParentTypeLabels` (every type with what
+it designates), and a 422 on `parentType` is returned with that list.
+
 ## Document Upload Sources
 
 `boond_documents_create` takes exactly one of `fileUrl`, `filePath`, or

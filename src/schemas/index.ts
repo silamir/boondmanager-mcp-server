@@ -2642,6 +2642,49 @@ export const DocumentParentTypes = [
   "opportunity",
 ] as const;
 
+/** Ce que désigne chaque type (RAML `documents/search.raml`, `opportunity` en plus). */
+export const DocumentParentTypeLabels: Readonly<Record<(typeof DocumentParentTypes)[number], string>> = {
+  action: "action",
+  resourceResume: "CV de ressource",
+  candidateResume: "CV de candidat",
+  resource: "dossier administratif de ressource",
+  candidate: "dossier administratif de candidat",
+  expensesReport: "justificatif de note de frais",
+  timesReport: "justificatif de CRA",
+  absencesReport: "justificatif de demande d'absence",
+  payment: "justificatif de paiement",
+  company: "société",
+  project: "projet",
+  order: "bon de commande",
+  product: "produit",
+  purchase: "achat",
+  delivery: "prestation",
+  groupment: "regroupement",
+  inactivity: "inactivité",
+  positioning: "positionnement",
+  followeddocument: "document suivi",
+  appentity: "entité d'application",
+  contract: "contrat",
+  invoice: "facture client",
+  providerinvoice: "facture fournisseur",
+  opportunity: "besoin / AO",
+};
+
+/** `type` (libellé), … — la liste montrée au modèle, générée depuis la table ci-dessus. */
+export const DOCUMENT_PARENT_TYPES_HELP = DocumentParentTypes.map(
+  (t) => `\`${t}\` (${DocumentParentTypeLabels[t]})`
+).join(", ");
+
+/**
+ * La graphie documentée d'un type connu, quelle que soit la casse reçue : l'API
+ * refuse `providerInvoice` (422) et n'accepte que `providerinvoice`, alors que la
+ * plupart des autres types sont en camelCase. Un type inconnu est renvoyé tel quel.
+ */
+export function canonicalDocumentParentType(raw: string): string {
+  const lower = raw.toLowerCase();
+  return DocumentParentTypes.find((t) => t.toLowerCase() === lower) ?? raw;
+}
+
 /** Forme d'un identifiant de type d'entité : un mot alphanumérique, sans séparateur ni espace. */
 export const DOCUMENT_PARENT_TYPE_PATTERN = /^[A-Za-z][A-Za-z0-9]{0,63}$/;
 
@@ -2654,10 +2697,9 @@ export const DocumentCreateSchema = z
         "parentType : un mot alphanumérique (ex. 'opportunity', 'candidateResume'), sans espace ni séparateur."
       )
       .describe(
-        "Type d'entité parente, tel que l'attend l'API BoondManager. Notables : 'candidateResume' (CV de candidat), " +
-          "'resourceResume' (CV de ressource), 'candidate'/'resource' (dossier administratif), 'opportunity' (besoin / AO), " +
-          "'positioning', 'company', 'project', 'order', 'invoice', 'action'... " +
-          "Un type hors de cette liste est transmis tel quel ; l'API le valide et refuse un type inconnu."
+        "Type d'entité parente, graphie exacte de l'API (la casse compte) : " +
+          DOCUMENT_PARENT_TYPES_HELP +
+          ". Un type hors de cette liste est transmis tel quel ; l'API le valide et refuse un type inconnu."
       ),
     parentId: z.number().int().min(1).describe("ID de l'entité parente"),
     fileUrl: z
