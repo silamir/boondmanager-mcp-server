@@ -56,7 +56,7 @@ export function registerTabTools(server: McpServer, opts: TabToolsOptions, tabs:
     // `provider_invoices` once shipped and answered 404 on every call: refuse
     // a segment that cannot be an API path at registration, not at runtime.
     if (!TAB_SEGMENT.test(tab.tab)) {
-      throw new Error(`Onglet « ${tab.tab} » (${opts.prefix}_${tab.name}) : segment d'API attendu en kebab-case.`);
+      throw new Error(`Tab segment "${tab.tab}" (${opts.prefix}_${tab.name}) must be kebab-case.`);
     }
     server.registerTool(
       `${opts.prefix}_${tab.name}`,
