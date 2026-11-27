@@ -132,8 +132,8 @@ succeeded or not).
   document after the download's `Content-Disposition`.
 - Slots are single-use and in memory (15 min). A claim before the upload has
   landed does **not** consume the slot; any other claim does. Expired slots are
-  swept when a new one opens; a crash leaves `mcp-<uuid>` folders to clean by
-  hand.
+  swept when a new one opens; with SharePoint a crash leaves `mcp-<uuid>`
+  folders to clean by hand (the Drive backend sweeps its transit folder, below).
 - The stored file is re-checked (size cap, magic bytes via a 16-byte ranged
   read) before Boond sees it; a refusal purges it.
 - The parameter is `uploadSlot`, not `uploadId`: every `*Id` input must be a
@@ -148,3 +148,68 @@ succeeded or not).
 - Exercised on a production tenant: a PDF attached to a conversation reached a
   candidate intact, the transit library ended empty, and both recycle-bin
   stages stayed empty (`permanentDelete` works with `Sites.Selected` + `write`).
+- **Google Drive backend** (`GoogleDriveRelay`, `BOOND_MCP_UPLOAD_RELAY=gdrive`):
+  service account, JWT bearer grant signed with `node:crypto` (no Google SDK),
+  scope `drive` (`drive.file` does not cover a human-created transit folder;
+  reach is bounded by shared-drive membership). Checked against the Drive API
+  docs (2026-11-27). Exercised on a real Workspace and a production Boond the
+  same day (a test provider invoice approved by the user, not a sandbox): slot
+  opening, the client's single token-less `PUT` with the returned `curl`
+  command (`Content-Range` included), `stat`, ranged and full `read`, and the
+  multipart hand-off — the PDF landed on the invoice (`parentType:
+  providerinvoice`, lowercase as in the RAML; `providerInvoice` is a 422) and
+  read back intact. Findings from that run:
+  - A shared drive that restricts download / copy (`copyRequiresWriterPermission`
+    or the newer download restrictions) makes `alt=media` answer 403 "This file
+    cannot be downloaded by the user" even for the service account: the
+    shared drive must allow downloads.
+  - The tag search (`files.list` + `appProperties`) lagged behind fresh
+    uploads: two refused claims purged nothing and raised nothing, leaving
+    their files. `purge(ref, stored)` now deletes by the id `stat` found
+    first, then by search; a failed purge in `claim` is logged and named in
+    the refusal (it used to be swallowed there too).
+  - The stale-sweep cutoff with milliseconds (`…:00.000Z`) made `files.list`
+    return nothing, without error; the cutoff is now sent as `…:00Z`.
+  - Without the Manager role on the **shared drive itself**, `files.delete`
+    answered 404 for files the account could list and read, and the 404 was
+    taken as "already gone": nothing was deleted, nothing reported. A 404 is
+    now checked with a `files.get`; a file still there goes to the trash
+    fallback below. With the role granted, the stale sweep (corrected cutoff)
+    found the 4 leftover test files and deleted them: 4 × 204, folder and
+    trash empty (observed).
+  Further design notes:
+  - **No pre-authenticated download URL exists** (downloads need a token;
+    `webContentLink` implies link sharing, which Workspace policy may block).
+    So `StoredObject.downloadUrl` is optional, the backend implements `read`,
+    and `ClaimedUpload` carries `data` instead: `boond_documents_create` sends
+    the bytes as the multipart `file` part (the path `filePath` uses), not a
+    `fileUrl`. The size cap is re-checked on the bytes read.
+  - The transit folder must sit in a **shared drive** (`driveId` checked on
+    first use; a service account has no My Drive storage). Every call passes
+    `supportsAllDrives`; the listing uses `corpora=drive` + `driveId`.
+  - Slot = resumable upload session (`uploadType=resumable`, `Location` header
+    = `uploadUrl`) whose metadata tags the file with `appProperties.boondMcpSlot`;
+    `stat` / `purge` find it by that tag (the file id exists only once the
+    upload completes). One PUT of the whole file, without a token, was
+    observed working (see above).
+  - Purge is `files.delete`, permanent (no trash), which needs `organizer` on
+    the shared drive. When it is refused (403, or a 404 on a file still
+    there), the file is moved to the trash (`PATCH trashed: true`, emptied by
+    Drive after 30 days) with a `warn` log, and `purge` returns `trashed` so
+    `boond_documents_create` says so in its result: better a file in the bin
+    than one left in the transit folder. Both refused → error. The fallback
+    has **not** been exercised on a real Workspace.
+  - A Drive resumable session outlives the 15-min slot (its URI stays valid
+    far longer), so a late PUT, or a restart that lost the in-memory slots,
+    can leave a tagged file no slot will purge. `RelayBackend.sweepStale`
+    (optional) runs on every `open`: Drive deletes every file of the
+    dedicated transit folder created before now − TTL. Searches are confined
+    to the transit folder (`'<folder>' in parents`).
+  - A failed purge is never hidden: it is logged; when the upload to Boond
+    succeeded, `boond_documents_create` also says "copie de transit NON
+    supprimée" in its result, and a claim refusal names it (both used to
+    swallow it). When Boond itself failed, the log is the only trace.
+- Relay backends call `fetch` directly, not `send()`: `send()` is the
+  BoondManager client (Boond auth, path guard, rate bucket, `X-Request-Id`),
+  wrong for a third-party store. The cost: no request cancellation and no
+  retry on the store's 429 / 5xx.

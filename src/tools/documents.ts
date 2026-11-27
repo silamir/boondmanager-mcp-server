@@ -7,6 +7,7 @@ import {
   DownloadTooLargeError,
 } from "../services/boond-client.js";
 import { progressReporterFrom } from "../services/progress.js";
+import { logger } from "../services/logger.js";
 import { z } from "zod";
 import {
   canonicalDocumentParentType,
@@ -18,7 +19,7 @@ import {
 } from "../schemas/index.js";
 import type { DocumentGetInput, DocumentCreateInput, DocumentUploadSlotInput } from "../schemas/index.js";
 import { uploadRelay } from "../services/upload-relay.js";
-import type { ClaimedUpload } from "../services/upload-relay.js";
+import type { ClaimedUpload, PurgeOutcome } from "../services/upload-relay.js";
 import { MAX_DOCUMENT_BYTES, MAX_IMAGE_BYTES, CHARACTER_LIMIT, INLINE_UPLOAD_MAX_BYTES } from "../constants.js";
 import { decodeInlineUpload, readLocalUpload, UploadRejectedError } from "../services/upload-source.js";
 import type { UploadFile } from "../services/upload-source.js";
@@ -169,9 +170,9 @@ Un ID inconnu est rejeté explicitement plutôt que de renvoyer la page d'accuei
     "boond_documents_upload_slot",
     {
       title: "Ouvrir un slot d'upload",
-      description: `Ouvre un slot d'upload à usage unique sur le relais de stockage configuré par l'opérateur (\`BOOND_MCP_UPLOAD_RELAY\`, ex. SharePoint), pour transmettre à BoondManager un fichier qui n'est ni à une URL publique ni sur le poste du serveur — typiquement une pièce jointe de conversation, présente dans l'environnement d'exécution de code du client.
+      description: `Ouvre un slot d'upload à usage unique sur le relais de stockage configuré par l'opérateur (\`BOOND_MCP_UPLOAD_RELAY\` : SharePoint ou Google Drive), pour transmettre à BoondManager un fichier qui n'est ni à une URL publique ni sur le poste du serveur — typiquement une pièce jointe de conversation, présente dans l'environnement d'exécution de code du client.
 
-Déroulé : (1) appeler cet outil avec le nom du fichier ; (2) déposer le fichier sur \`uploadUrl\` en **une seule requête PUT** depuis l'environnement d'exécution, avec la commande \`curl\` renvoyée — les octets ne passent pas par la réponse du modèle ; (3) appeler \`boond_documents_create\` avec \`uploadSlot\`. Le fichier est vérifié (taille, premiers octets), transmis à Boond par une URL de lecture temporaire, puis supprimé définitivement du relais.
+Déroulé : (1) appeler cet outil avec le nom du fichier ; (2) déposer le fichier sur \`uploadUrl\` en **une seule requête PUT** depuis l'environnement d'exécution, avec la commande \`curl\` renvoyée — les octets ne passent pas par la réponse du modèle ; (3) appeler \`boond_documents_create\` avec \`uploadSlot\`. Le fichier est vérifié (taille, premiers octets), transmis à Boond (URL de lecture temporaire avec SharePoint, envoi direct par le serveur avec Google Drive), puis supprimé définitivement du relais (avec Google Drive, mis à la corbeille si la suppression définitive est refusée ; la réponse le signale).
 
 Slot valable 15 min, un seul fichier, un seul usage. \`uploadUrl\` est pré-authentifiée : ne pas la réutiliser ni la partager.
 
@@ -273,11 +274,19 @@ Returns: Métadonnées du document créé (ID).`,
 
       let file: UploadFile | undefined;
       let relayed: ClaimedUpload | undefined;
+      let purgeError: string | undefined;
+      let purgeOutcome: PurgeOutcome | undefined;
       try {
         if (params.filePath !== undefined) file = await readLocalUpload(params.filePath);
         else if (params.fileContent !== undefined && params.fileName !== undefined)
           file = decodeInlineUpload(params.fileContent, params.fileName);
-        else if (params.uploadSlot !== undefined) relayed = await uploadRelay.claim(params.uploadSlot);
+        else if (params.uploadSlot !== undefined) {
+          relayed = await uploadRelay.claim(params.uploadSlot);
+          // Stores without a pre-authenticated URL (Google Drive): send the bytes.
+          if (relayed.data !== undefined) {
+            file = { data: relayed.data, filename: relayed.filename, contentType: relayed.contentType };
+          }
+        }
       } catch (error) {
         if (error instanceof UploadRejectedError) return reject(error.message);
         throw error;
@@ -289,7 +298,7 @@ Returns: Métadonnées du document créé (ID).`,
       };
       if (params.fileUrl !== undefined) fields.fileUrl = params.fileUrl;
       // The relay hands Boond a short-lived pre-authenticated download URL.
-      if (relayed !== undefined) fields.fileUrl = relayed.downloadUrl;
+      if (relayed?.downloadUrl !== undefined) fields.fileUrl = relayed.downloadUrl;
       if (params.parsing !== undefined) fields.parsing = String(params.parsing);
 
       let response;
@@ -311,17 +320,31 @@ Returns: Métadonnées du document créé (ID).`,
         throw error;
       } finally {
         // Boond has fetched the file (or failed): purge the relay copy either way.
-        if (relayed !== undefined) await relayed.release().catch(() => undefined);
+        // A failed purge is reported, never hidden: the copy would stay in the store.
+        if (relayed !== undefined) {
+          const purged = await relayed.release().then(
+            (outcome) => ({ outcome: outcome ?? undefined, error: undefined }),
+            (error: unknown) => ({ outcome: undefined, error: error instanceof Error ? error.message : String(error) })
+          );
+          purgeOutcome = purged.outcome;
+          purgeError = purged.error;
+          if (purgeError !== undefined) logger.warn({ err: purgeError }, "upload relay: transit copy not purged");
+        }
       }
       const entity = Array.isArray(response.data) ? response.data[0] : response.data;
       const structured: { id?: string; type?: string } = {};
       if (entity?.id !== undefined) structured.id = String(entity.id);
       if (entity?.type !== undefined) structured.type = String(entity.type);
       const sent =
-        file !== undefined
+        file !== undefined && relayed === undefined
           ? `\nFichier: ${file.filename} (${file.contentType}, ${(file.data.length / 1024).toFixed(0)} Ko)`
           : relayed !== undefined
-            ? `\nFichier: ${relayed.filename} (${relayed.contentType}, ${(relayed.size / 1024).toFixed(0)} Ko, via relais — copie de transit supprimée)`
+            ? `\nFichier: ${relayed.filename} (${relayed.contentType}, ${(relayed.size / 1024).toFixed(0)} Ko, via relais — ` +
+              (purgeError === undefined
+                ? purgeOutcome === "trashed"
+                  ? "⚠️ suppression définitive refusée, copie de transit mise à la corbeille du stockage, vidée sous 30 jours)"
+                  : "copie de transit supprimée)"
+                : `⚠️ copie de transit NON supprimée : ${purgeError} — à supprimer à la main dans le stockage du relais)`)
             : "";
       return {
         content: [
