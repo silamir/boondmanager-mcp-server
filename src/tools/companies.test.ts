@@ -71,6 +71,13 @@ describe("registerCompanyTools", () => {
     expect(names).toContain("boond_companies_provider_invoices");
   });
 
+  it("reads the provider invoices tab on the kebab-case route", async () => {
+    const spy = vi.spyOn(boondClient, "apiRequest").mockResolvedValue({ data: [] } as never);
+    registerCompanyTools(server);
+    await getHandler(server, "boond_companies_provider_invoices")({ id: "69" });
+    expect(spy).toHaveBeenCalledWith("/companies/69/provider-invoices");
+  });
+
   it("should register tab tools as readOnly and non-destructive", () => {
     registerCompanyTools(server);
     const tabCalls = vi

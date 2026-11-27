@@ -81,7 +81,8 @@ const COMPANY_TABS: TabDefinition[] = [
   },
   {
     name: "provider_invoices",
-    tab: "provider_invoices",
+    // API sub-resource paths are kebab-case: `provider_invoices` answered 404.
+    tab: "provider-invoices",
     title: "Factures fournisseur d'une société",
     subject: "les factures fournisseur",
     content: "factures reçues de la société en tant que prestataire",
