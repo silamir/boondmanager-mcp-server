@@ -51,6 +51,9 @@ exclude_patterns = [
     "**/*.min.js",
     "**/*.min.css",
     "**/*.map",
+    # generated files (npm run docs:tools / plugin:manifest), never hand-edited
+    "TOOLS.md",
+    "plugins/boondmanager-mcp/**",
 ]
 
 test_patterns = [
