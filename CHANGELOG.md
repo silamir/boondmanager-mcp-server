@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`boond_companies_provider_invoices` appelait une route inexistante** : `/companies/{id}/provider_invoices` (404 sur une instance réelle, en lecture), au lieu de `/companies/{id}/provider-invoices` (200, la graphie de la doc RAML). L'outil n'avait donc jamais fonctionné. `registerTabTools` refuse désormais à l'enregistrement un segment d'onglet qui n'est pas en kebab-case.
+
 ## [2.21.0] - 2026-11-27
 
 Relais d'upload Google Drive pour `boond_documents_upload_slot`, factures fournisseur alignées sur toute la doc de l'API (rattachement d'une ressource ou du fournisseur en modification, nouveaux filtres de recherche) et `parentType` de `boond_documents_create` envoyé avec la casse attendue par l'API. Aucun nom d'outil ne change. Catalogue : 238 outils.

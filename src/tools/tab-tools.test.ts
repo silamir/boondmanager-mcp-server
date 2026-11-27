@@ -85,3 +85,15 @@ describe("registerTabTools", () => {
     expect(result.content[0].text).toContain('"firstName": "Jean"');
   });
 });
+
+describe("registerTabTools path segment guard", () => {
+  it("refuses a tab segment that is not kebab-case", () => {
+    const server = { registerTool: vi.fn() } as unknown as McpServer;
+    expect(() =>
+      registerTabTools(server, OPTS, [
+        { name: "provider_invoices", tab: "provider_invoices", title: "t", subject: "s", returns: "r" },
+      ])
+    ).toThrow(/kebab-case/);
+    expect(server.registerTool).not.toHaveBeenCalled();
+  });
+});

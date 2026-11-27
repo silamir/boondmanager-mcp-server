@@ -48,8 +48,16 @@ export interface TabToolsOptions extends EntityWording {
   apiPath: string;
 }
 
+/** BoondManager sub-resource segments are kebab-case (`technical-data`, `provider-invoices`). */
+const TAB_SEGMENT = /^[a-z]+(-[a-z]+)*$/;
+
 export function registerTabTools(server: McpServer, opts: TabToolsOptions, tabs: TabDefinition[]): void {
   for (const tab of tabs) {
+    // `provider_invoices` once shipped and answered 404 on every call: refuse
+    // a segment that cannot be an API path at registration, not at runtime.
+    if (!TAB_SEGMENT.test(tab.tab)) {
+      throw new Error(`Tab segment "${tab.tab}" (${opts.prefix}_${tab.name}) must be kebab-case.`);
+    }
     server.registerTool(
       `${opts.prefix}_${tab.name}`,
       {
