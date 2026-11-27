@@ -381,7 +381,8 @@ describe("registerDocumentTools", () => {
         "boond_documents_create"
       )({ parentType: "providerInvoice", parentId: 999, uploadSlot: "21d7c7f5-bc3a-4a08-859d-8eebbc0e98c9" });
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toMatch(/« providerinvoice » est documenté.*parentId/);
+      expect(result.content[0].text).toMatch(/« providerinvoice » figure dans la doc de l'API.*parentId/);
+      expect(result.content[0].text).toMatch(/n'a été exercée que pour `providerinvoice`/);
       expect(result.content[0].text).toContain("parentType corrigé");
       expect(result.content[0].text).not.toContain("Type refusé");
       expect(release).toHaveBeenCalledTimes(1);

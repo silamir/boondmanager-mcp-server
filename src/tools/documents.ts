@@ -303,7 +303,8 @@ Returns: Métadonnées du document créé (ID).`,
         if (error instanceof BoondApiError && error.status === 422 && /\(parameter: parentType\)/.test(error.message)) {
           const documented = (DocumentParentTypes as readonly string[]).includes(parentType);
           const advice = documented
-            ? `Le type « ${parentType} » est documenté : vérifier que \`parentId\` désigne bien une entité existante de ce type.`
+            ? `Le type « ${parentType} » figure dans la doc de l'API : vérifier d'abord que \`parentId\` désigne une entité existante de ce type. ` +
+              "La graphie de ce type vient de la doc et n'a été exercée que pour `providerinvoice` : si `parentId` est correct, signaler le refus plutôt que d'essayer d'autres graphies (le MCP les ramènerait à celle-ci)."
             : `Type refusé : « ${parentType} ». Types documentés (casse exacte) : ${DOCUMENT_PARENT_TYPES_HELP}.`;
           return reject(`${advice}${corrected}\n\n${error.message}`);
         }

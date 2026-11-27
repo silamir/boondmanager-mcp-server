@@ -2611,7 +2611,8 @@ export const DictionaryGetSchema = z
 //
 // Types de parent connus de `POST /documents`, repris dans la description de
 // l'outil pour guider le modèle. La liste n'est PAS une garde : `parentType`
-// est transmis tel quel à BoondManager, qui reste l'autorité sur les types
+// est transmis tel quel à BoondManager (sauf la casse d'un type documenté,
+// ramenée à sa graphie exacte, voir `canonicalDocumentParentType`), qui reste l'autorité sur les types
 // qu'il accepte (un type inconnu est refusé par l'API, rien n'est écrit). Une
 // liste figée côté MCP refusait des entités que l'API gère (besoins /
 // opportunités, positionnements...) tant qu'elle n'avait pas été complétée.

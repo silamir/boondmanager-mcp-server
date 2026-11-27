@@ -39,9 +39,10 @@ into an `isError` result. Before, the whole file was buffered and *then*
 measured, so a 200 MB document cost 200 MB of heap per concurrent call and
 was only bounded by the 30 s timeout. Document ids are found in entity
 tabs (e.g. `boond_candidates_information` → relations `resumes`/`files`).
-`boond_documents_create` uploads **by URL only** (`fileUrl` — Boond fetches
-the file server-side; the MCP server never reads local files), with
-`parsing: true` to trigger Boond's AI resume parsing on `candidateResume`.
+`boond_documents_create` uploads from one of four sources (`fileUrl`,
+`filePath`, `fileContent`, `uploadSlot` — see *Document Upload Sources* and
+*Upload Relay* below), with `parsing: true` to trigger Boond's AI resume
+parsing on `candidateResume`.
 Delete goes through the factory (elicitation + structuredContent).
 
 Document ids are the **one exception** to the numeric-id rule, and the two
@@ -76,15 +77,19 @@ BoondManager compared the type case-sensitively for the one type exercised
 (2026-11-27: `providerInvoice` → 422 `parameter: parentType`, `providerinvoice`
 → document created); the other spellings come from the RAML, not exercised
 one by one. The RAML list (`documents/search.raml`) mixes camelCase
-(`expensesReport`) and all-lowercase (`providerinvoice`, `followeddocument`,
-`appentity`), so a model guesses wrong. The handler maps a case-insensitive
-match of `DocumentParentTypes` to its documented spelling **before** any file
-is read or a relay slot consumed, and says so in the result; anything else
+(`expensesReport`) with three compound names written all-lowercase
+(`providerinvoice`, `followeddocument`, `appentity`), so a model guesses wrong.
+The handler maps a case-insensitive match of `DocumentParentTypes` to its
+documented spelling before the upload (so a case slip no longer costs a relay
+slot), and says so in the result; anything else
 still goes through untouched (the list is guidance, not a guard). The field
 description is generated from `DocumentParentTypeLabels` (every type with what
 it designates). A 422 on `parentType` returns that list for an unknown type,
-and for a documented one points at `parentId` instead (Boond may name
-`parentType` when the parent does not exist — not verified).
+and for a documented one points at `parentId` first (Boond may name
+`parentType` when the parent does not exist — not verified). Known limit: the
+rewrite also applies to a retry with another casing, so if a RAML spelling
+were wrong for the API that type could not be used through the MCP; the 422
+message says so, and the correction note shows what was actually sent.
 
 ## Document Upload Sources
 
