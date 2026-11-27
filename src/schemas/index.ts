@@ -2039,7 +2039,7 @@ export const ProviderInvoiceSearchSchema = z
       .enum([...periodDynamicField.unwrap().options, "lastCustomPeriod", "nextCustomPeriod"])
       .optional()
       .describe(
-        "Fenêtre relative appliquée à `period` : thisMonth, lastMonth, thisYear, untilToday…, ou lastCustomPeriod / nextCustomPeriod avec `periodDynamicParameters` (les N unités complètes précédentes / suivantes, l'unité en cours exclue : `3,months` le 27/11 = août à octobre)."
+        "Fenêtre relative appliquée à `period` : thisMonth, lastMonth, thisYear, untilToday…, ou lastCustomPeriod / nextCustomPeriod avec `periodDynamicParameters` (les N unités complètes précédentes / suivantes, l'unité en cours exclue : `3,months` le 27/11 = août à octobre ; nextCustomPeriod non vérifié)."
       ),
     periodDynamicParameters: z
       .string()
@@ -2099,10 +2099,10 @@ export const ProviderInvoiceCreateSchema = z
     reference: z.string().min(1).describe("Référence de la facture fournisseur"),
     resourceId: EntityIdSchema.describe("ID de la ressource portée par la facture fournisseur"),
     companyId: EntityIdSchema.optional().describe(
-      "ID de la société fournisseur, mappé vers providerCompany (avec `contactId` : l'API exige les deux)"
+      "ID de la société fournisseur, mappé vers providerCompany (avec `contactId` : la doc de l'API exige les deux)"
     ),
     contactId: EntityIdSchema.optional().describe(
-      "ID du contact fournisseur, mappé vers providerContact (avec `companyId` : l'API exige les deux)"
+      "ID du contact fournisseur, mappé vers providerContact (avec `companyId` : la doc de l'API exige les deux)"
     ),
     invoiceDate: z.string().optional().describe("Date de facture (YYYY-MM-DD)"),
     startDate: z.string().min(1).describe("Date de début de période (YYYY-MM-DD)"),
@@ -2188,7 +2188,9 @@ export const ProviderInvoiceUpdateSchema = z
       .strict()
       .nullable()
       .optional()
-      .describe("Fournisseur : société et contact ensemble (exigé par l'API), ou `null` pour retirer les deux"),
+      .describe(
+        "Fournisseur : société et contact ensemble (exigé par la doc de l'API), ou `null` pour retirer les deux"
+      ),
     // RAML bodyPut.json `payments`: link between the invoice and its purchases.
     payments: z
       .array(

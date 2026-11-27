@@ -173,8 +173,7 @@ attribute the API ignored.
 `provider: { companyId, contactId } | null`. It documents **no `resource`**
 (only `bodyPost.json` and the read `profile.json` carry it), yet the API
 applies an undocumented `relationships.resource` on PUT: exercised on the
-production tenant (2026-11-26, no sandbox, with the owner's approval — the
-maintainer's rule forbids test writes there, said here so it is visible) by moving an invoice from one resource to
+production tenant (2026-11-26, no sandbox, with the owner's approval) by moving an invoice from one resource to
 another and back, each change visible on re-read, other attributes intact.
 That is `resourceId` on the update tool, the way to attach an e-invoice
 received without a resource. This also confirms the verb and route (`PUT`
@@ -188,7 +187,11 @@ amountExcludingTax, amountIncludingTax, taxRate, purchase: { id } }`, saved
 when the invoice has a resource and the request validates it, or alone on an
 invoice without resource) is exposed as `purchaseId` mapped to `purchase.id`;
 not exercised, including whether the array replaces the invoice's existing
-payments or adds to them. Everything else in bodyPost.json / bodyPut.json is exposed too
+payments or adds to them. An item without `id` creates a payment on every call,
+so a retried update can duplicate it: the description says so, but the tool
+keeps `idempotentHint: true`, which the access policy reads as the "update"
+operation class (`access-policy.ts`); flipping it would move the tool to
+"create" for every profile. Everything else in bodyPost.json / bodyPut.json is exposed too
 (`mainManagerId`, `agencyId`, nullable `poleId` / `billingDetailId`,
 `stateReason`, create-side `payments` by `deliveryId`, update-side
 `creationDate`, currency and rates), none exercised. Not exposed on purpose:

@@ -23,7 +23,7 @@ describe("registerProviderInvoiceTools", () => {
     vi.mocked(apiRequest).mockResolvedValue({ data: { id: "11", type: "providerinvoice", attributes: {} } } as never);
   });
 
-  it("should register 3 provider invoice tools", () => {
+  it("should register 5 provider invoice tools", () => {
     registerProviderInvoiceTools(server);
     expect(server.registerTool).toHaveBeenCalledTimes(5);
   });

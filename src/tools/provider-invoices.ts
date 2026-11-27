@@ -44,14 +44,14 @@ function sharedRelationships(params: Record<string, unknown>): Record<string, Re
 }
 
 /**
- * `/provider-invoices` payload: `resource` is mandatory, `providerCompany` /
+ * `/provider-invoices` payload: `resource` is required by this tool's schema, `providerCompany` /
  * `providerContact` optional but, per the RAML bodyPost.json, set together.
  */
 export function buildProviderInvoiceBody(params: Record<string, unknown>): unknown {
   const { companyId, contactId, resourceId, mainManagerId, agencyId, poleId, billingDetailId, ...attrs } = params;
   if (Boolean(companyId) !== Boolean(contactId)) {
     throw new Error(
-      "`companyId` et `contactId` vont ensemble : l'API exige le contact fournisseur dès que la société est renseignée, et inversement."
+      "`companyId` et `contactId` vont ensemble : la doc de l'API exige le contact fournisseur dès que la société est renseignée, et inversement."
     );
   }
   return buildJsonApiBody("providerinvoice", attrs, undefined, {
@@ -138,7 +138,7 @@ export function registerProviderInvoiceTools(server: McpServer): void {
       instead:
         "`boond_invoices_create` pour une facture de vente adressée à un client — les deux sens ne partagent pas d'endpoint.",
       behaviour: [
-        "`resourceId` (relation `resource`), `companyId` et `contactId` (relations `providerCompany` / `providerContact`) sont des ID numériques ; `companyId` et `contactId` vont ensemble (exigé par l'API).",
+        "`resourceId` (relation `resource`), `companyId` et `contactId` (relations `providerCompany` / `providerContact`) sont des ID numériques ; `companyId` et `contactId` vont ensemble (exigé par la doc de l'API).",
         "`mainManagerId`, `agencyId`, `poleId`, `billingDetailId`, `stateReason` et `payments` (par prestation) suivent la doc de l'API, non vérifiés.",
         "Écriture non idempotente.",
       ],
