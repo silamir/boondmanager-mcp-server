@@ -40,3 +40,4 @@ export { registerGroupmentTools } from "./groupments.js";
 export { registerAlertTools } from "./alerts.js";
 export { registerDocumentTools } from "./documents.js";
 export { registerWorkflowTools } from "./workflows.js";
+export { registerResourcePlannerTools } from "./resource-planner.js";

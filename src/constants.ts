@@ -158,6 +158,9 @@ export const API_PATHS = {
   groupments: "/groupments",
   // Issue #255 — the user's dashboard alerts (alerts/search.raml: get only, no parameter).
   alerts: "/alerts",
+  // Resource Planner app — not in the public RAML, read from the app's traffic and verified live.
+  resourcePlannerResources: "/apps/resource-planner/resources",
+  resourcePlannerProjects: "/apps/resource-planner/projects",
 } as const;
 
 // Canonical list of tool domains exposed by the server, in registration order.
@@ -210,6 +213,7 @@ export const REGISTERED_DOMAINS = [
   "alerts",
   "documents",
   "workflows",
+  "resource-planner",
 ] as const;
 
 export type DomainName = (typeof REGISTERED_DOMAINS)[number];

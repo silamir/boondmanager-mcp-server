@@ -39,6 +39,7 @@ import {
   registerPoleTools,
   registerReportingTools,
   registerPlanningAbsenceTools,
+  registerResourcePlannerTools,
   registerInactivityTools,
   registerFormTools,
   registerGroupmentTools,
@@ -176,6 +177,7 @@ export const TOOL_REGISTRARS: ReadonlyArray<readonly [DomainName, (server: McpSe
     ["alerts", registerAlertTools],
     ["documents", registerDocumentTools],
     ["workflows", registerWorkflowTools],
+    ["resource-planner", registerResourcePlannerTools],
   ];
 
 /**

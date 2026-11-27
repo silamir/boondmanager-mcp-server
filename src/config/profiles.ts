@@ -111,6 +111,7 @@ const PROFILE_TABLE = {
     "timesheets",
     "absences",
     "planning-absences",
+    "resource-planner",
     "validations",
     "contracts",
     // Issue #256: bench periods, delivery groupments (multi-delivery billing) and

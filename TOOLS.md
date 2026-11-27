@@ -3,7 +3,7 @@
 > Auto-generated from the server registrations. Do not edit by hand.
 > Regenerate with `npm run docs:tools` (CI fails if this file is stale).
 
-**238 tools** across **45 domains** · **24 prompts** · **48 resources** · **6 resource templates**.
+**240 tools** across **46 domains** · **24 prompts** · **48 resources** · **6 resource templates**.
 
 Hint legend: `read` (readOnlyHint), `write` (creates/updates), `delete` (destructiveHint), `idempotent` (idempotentHint), `open-world` (openWorldHint, e.g. paginated keyword search).
 
@@ -357,6 +357,13 @@ Hint legend: `read` (readOnlyHint), `write` (creates/updates), `delete` (destruc
 | `boond_reporting_projects` | Reporting projets | read · idempotent · open-world |
 | `boond_reporting_resources` | Reporting ressources | read · idempotent · open-world |
 | `boond_reporting_synthesis` | Reporting synthèse | read · idempotent · open-world |
+
+### resource_planner (2)
+
+| Tool | Title | Hints |
+|---|---|---|
+| `boond_resource_planner_project` | Plan de charge mensuel d'un projet | read · idempotent |
+| `boond_resource_planner_resource` | Plan de charge mensuel d'une ressource | read · idempotent |
 
 ### resources (21)
 
