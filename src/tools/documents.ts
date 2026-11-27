@@ -11,6 +11,7 @@ import { z } from "zod";
 import {
   canonicalDocumentParentType,
   DOCUMENT_PARENT_TYPES_HELP,
+  DocumentParentTypes,
   DocumentGetSchema,
   DocumentCreateSchema,
   DocumentUploadSlotSchema,
@@ -299,10 +300,12 @@ Returns: Métadonnées du document créé (ID).`,
             : await apiUploadForm("/documents", fields, file);
       } catch (error) {
         // Boond's 422 names the parameter but not what it expects: list the documented types.
-        if (error instanceof BoondApiError && error.status === 422 && /parameter: parentType/.test(error.message)) {
-          return reject(
-            `${error.message}\n\nType refusé : « ${parentType} ». Types documentés (casse exacte) : ${DOCUMENT_PARENT_TYPES_HELP}.`
-          );
+        if (error instanceof BoondApiError && error.status === 422 && /\(parameter: parentType\)/.test(error.message)) {
+          const documented = (DocumentParentTypes as readonly string[]).includes(parentType);
+          const advice = documented
+            ? `Le type « ${parentType} » est documenté : vérifier que \`parentId\` désigne bien une entité existante de ce type.`
+            : `Type refusé : « ${parentType} ». Types documentés (casse exacte) : ${DOCUMENT_PARENT_TYPES_HELP}.`;
+          return reject(`${advice}${corrected}\n\n${error.message}`);
         }
         throw error;
       } finally {

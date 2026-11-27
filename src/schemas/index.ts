@@ -2676,9 +2676,10 @@ export const DOCUMENT_PARENT_TYPES_HELP = DocumentParentTypes.map(
 ).join(", ");
 
 /**
- * La graphie documentée d'un type connu, quelle que soit la casse reçue : l'API
- * refuse `providerInvoice` (422) et n'accepte que `providerinvoice`, alors que la
- * plupart des autres types sont en camelCase. Un type inconnu est renvoyé tel quel.
+ * La graphie documentée d'un type connu, quelle que soit la casse reçue. Observé
+ * pour un seul type (27/11/2026) : l'API refuse `providerInvoice` (422) et accepte
+ * `providerinvoice`. Pour les autres, la graphie vient du RAML, non exercée une à
+ * une. Un type inconnu est renvoyé tel quel.
  */
 export function canonicalDocumentParentType(raw: string): string {
   const lower = raw.toLowerCase();

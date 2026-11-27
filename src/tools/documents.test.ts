@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerDocumentTools } from "./documents.js";
-import { apiDownload, apiUploadForm, BoondApiError, DownloadTooLargeError } from "../services/boond-client.js";
+import {
+  apiDownload,
+  apiUploadForm,
+  BoondApiError,
+  DownloadTooLargeError,
+  formatApiError,
+} from "../services/boond-client.js";
 import { MAX_DOCUMENT_BYTES, MAX_IMAGE_BYTES, CHARACTER_LIMIT } from "../constants.js";
 import { buildPdf, buildZip } from "../services/document-text.test.js";
 import { readLocalUpload, UploadRejectedError } from "../services/upload-source.js";
@@ -344,6 +350,54 @@ describe("registerDocumentTools", () => {
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain("Type refusé : « supplierBill »");
       expect(result.content[0].text).toContain("`providerinvoice` (facture fournisseur)");
+    });
+
+    it("points at parentId, not at the type, when Boond refuses a documented type", async () => {
+      vi.mocked(apiUploadForm).mockRejectedValue(
+        new BoondApiError(
+          formatApiError(
+            422,
+            "Unprocessable Entity",
+            "POST",
+            "/documents",
+            '{"errors":[{"code":"1002","detail":"Wrong or missing attribute","source":{"parameter":"parentType"}}]}'
+          ),
+          422,
+          "POST",
+          "/documents"
+        )
+      );
+      const release = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(uploadRelay.claim).mockResolvedValue({
+        downloadUrl: "https://relay.example/dl",
+        filename: "f.pdf",
+        contentType: "application/pdf",
+        size: 1,
+        release,
+      } as never);
+      registerDocumentTools(server);
+      const result = await handlerOf(
+        server,
+        "boond_documents_create"
+      )({ parentType: "providerInvoice", parentId: 999, uploadSlot: "21d7c7f5-bc3a-4a08-859d-8eebbc0e98c9" });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toMatch(/« providerinvoice » est documenté.*parentId/);
+      expect(result.content[0].text).toContain("parentType corrigé");
+      expect(result.content[0].text).not.toContain("Type refusé");
+      expect(release).toHaveBeenCalledTimes(1);
+    });
+
+    it("rethrows a 422 about another parameter", async () => {
+      vi.mocked(apiUploadForm).mockRejectedValue(
+        new BoondApiError("BoondManager API 422 : 1002 - Wrong (parameter: parentId)", 422, "POST", "/documents")
+      );
+      registerDocumentTools(server);
+      await expect(
+        handlerOf(
+          server,
+          "boond_documents_create"
+        )({ parentType: "resource", parentId: 1, fileUrl: "https://e.com/f.pdf" })
+      ).rejects.toThrow(/parentId/);
     });
 
     it("rethrows other Boond errors untouched", async () => {

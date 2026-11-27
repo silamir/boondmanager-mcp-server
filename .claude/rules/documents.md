@@ -72,16 +72,19 @@ halves of that exception have to stay together (issue #186):
   failure silent, hence: don't remove one without the other.
 
 **`parentType` spelling** (`canonicalDocumentParentType`, `src/schemas/index.ts`):
-BoondManager compares the type case-sensitively — observed 2026-11-27,
-`providerInvoice` → 422 `parameter: parentType`, `providerinvoice` → document
-created. The RAML list (`documents/search.raml`) mixes camelCase
+BoondManager compared the type case-sensitively for the one type exercised
+(2026-11-27: `providerInvoice` → 422 `parameter: parentType`, `providerinvoice`
+→ document created); the other spellings come from the RAML, not exercised
+one by one. The RAML list (`documents/search.raml`) mixes camelCase
 (`expensesReport`) and all-lowercase (`providerinvoice`, `followeddocument`,
 `appentity`), so a model guesses wrong. The handler maps a case-insensitive
 match of `DocumentParentTypes` to its documented spelling **before** any file
 is read or a relay slot consumed, and says so in the result; anything else
 still goes through untouched (the list is guidance, not a guard). The field
 description is generated from `DocumentParentTypeLabels` (every type with what
-it designates), and a 422 on `parentType` is returned with that list.
+it designates). A 422 on `parentType` returns that list for an unknown type,
+and for a documented one points at `parentId` instead (Boond may name
+`parentType` when the parent does not exist — not verified).
 
 ## Document Upload Sources
 
